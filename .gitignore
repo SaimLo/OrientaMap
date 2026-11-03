@@ -1,4 +1,15 @@
 # Project exclude paths
 /.gradle/
 /app/build/
-/build/
+**/build/
+.gradle/
+.idea/
+.externalNativeBuild/
+.cxx/
+local.properties
+*.iml
+*.apk
+*.aab
+*.jks
+*.keystore
+captures/
