@@ -8,8 +8,9 @@ import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
 import androidx.core.content.ContextCompat
+import com.showroomprive.orientamap.presentation.map.LocationProvider
 
-class LocationTracker(context: Context) {
+class LocationTracker(context: Context) : LocationProvider {
     private val appContext = context.applicationContext
     private val locationManager = appContext.getSystemService(LocationManager::class.java)
 
@@ -22,18 +23,18 @@ class LocationTracker(context: Context) {
     private var onLocation: ((Location) -> Unit)? = null
 
     @SuppressLint("MissingPermission")
-    fun start(onLocation: (Location) -> Unit) {
+    override fun start(onLocation: (Location) -> Unit) {
         if (!hasAnyLocationPermission()) return
         this.onLocation = onLocation
         if (hasFineLocationPermission()) {
-            locationManager.requestLocationUpdates(
+            locationManager?.requestLocationUpdates(
                 LocationManager.GPS_PROVIDER,
                 2_000L,
                 2f,
                 listener
             )
         }
-        locationManager.requestLocationUpdates(
+        locationManager?.requestLocationUpdates(
             LocationManager.NETWORK_PROVIDER,
             5_000L,
             5f,
@@ -41,8 +42,8 @@ class LocationTracker(context: Context) {
         )
     }
 
-    fun stop() {
-        locationManager.removeUpdates(listener)
+    override fun stop() {
+        locationManager?.removeUpdates(listener)
         onLocation = null
     }
 

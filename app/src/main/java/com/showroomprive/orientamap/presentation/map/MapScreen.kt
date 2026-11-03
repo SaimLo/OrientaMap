@@ -69,17 +69,55 @@ import kotlin.math.cos
 import kotlin.math.pow
 import kotlin.math.roundToInt
 
+class MapLibreMapController(private val map: MapLibreMap) : MapController {
+    override fun moveCameraTo(location: Location) {
+        map.animateCameraToLocation(location)
+    }
+
+    override fun updateUserLocation(location: Location) {
+        map.ensureLocationMarker()
+        map.updateLocationMarker(location)
+    }
+}
+
 @Composable
 fun MapScreen(
     projectTitle: String,
     onBack: () -> Unit,
+    locationProvider: LocationProvider? = null,
+    mapController: MapController? = null,
+    mapContent: @Composable () -> Unit = {
+        var mapInstance by remember { mutableStateOf<MapLibreMap?>(null) }
+        var cameraTick by remember { mutableIntStateOf(0) }
+        val viewModel: MapViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+        MapLibreView(
+            modifier = Modifier.fillMaxSize().testTag("map_view"),
+            onMapReady = { map ->
+                mapInstance = map
+                val ctrl = MapLibreMapController(map)
+                map.ensureLocationMarker()
+                viewModel.location?.let { ctrl.updateUserLocation(it) }
+                if (map.cameraPosition.zoom < 2.0) {
+                    map.cameraPosition = CameraPosition.Builder()
+                        .target(LatLng(46.6, 2.4))
+                        .zoom(5.2)
+                        .build()
+                }
+            },
+            onCameraMove = {
+                cameraTick++
+            }
+        )
+    },
     viewModel: MapViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
 ) {
     val context = LocalContext.current
+    val activeLocationProvider = remember(locationProvider) {
+        locationProvider ?: LocationTracker(context)
+    }
     var mapInstance by remember { mutableStateOf<MapLibreMap?>(null) }
     var cameraTick by remember { mutableIntStateOf(0) }
     var hasPermission by remember { mutableStateOf(hasLocationPermission(context)) }
-    val locationTracker = remember { LocationTracker(context) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -99,24 +137,27 @@ fun MapScreen(
         }
     }
 
-    DisposableEffect(hasPermission) {
+    DisposableEffect(hasPermission, activeLocationProvider) {
         if (hasPermission) {
-            locationTracker.start { newLocation ->
+            activeLocationProvider.start { newLocation ->
                 viewModel.updateLocation(newLocation)
             }
         }
-        onDispose { locationTracker.stop() }
+        onDispose { activeLocationProvider.stop() }
     }
 
-    LaunchedEffect(viewModel.location, mapInstance) {
+    val activeController = mapController ?: remember(mapInstance) {
+        mapInstance?.let { MapLibreMapController(it) }
+    }
+
+    LaunchedEffect(viewModel.location, activeController) {
         val currentLocation = viewModel.location
-        val currentMap = mapInstance
-        if (currentMap != null) {
-            currentMap.ensureLocationMarker()
-            currentLocation?.let { currentMap.updateLocationMarker(it) }
+        val ctrl = activeController
+        if (currentLocation != null && ctrl != null) {
+            ctrl.updateUserLocation(currentLocation)
         }
-        if (!viewModel.centeredOnLocation && currentLocation != null && currentMap != null) {
-            currentMap.animateCameraToLocation(currentLocation)
+        if (!viewModel.centeredOnLocation && currentLocation != null && ctrl != null) {
+            ctrl.moveCameraTo(currentLocation)
             viewModel.centeredOnLocation = true
         }
     }
@@ -137,23 +178,7 @@ fun MapScreen(
         val heightPx = containerHeightPx
 
         // Map component
-        MapLibreView(
-            modifier = Modifier.fillMaxSize(),
-            onMapReady = { map ->
-                mapInstance = map
-                map.ensureLocationMarker()
-                viewModel.location?.let { map.updateLocationMarker(it) }
-                if (map.cameraPosition.zoom < 2.0) {
-                    map.cameraPosition = CameraPosition.Builder()
-                        .target(LatLng(46.6, 2.4))
-                        .zoom(5.2)
-                        .build()
-                }
-            },
-            onCameraMove = {
-                cameraTick++
-            }
-        )
+        mapContent()
 
         // Isolated zone selection section
         if (viewModel.isSelectionModeActive && widthPx > 0f && heightPx > 0f) {
@@ -555,7 +580,6 @@ private fun ZoneSelectionOverlay(
             val primaryColor = Color(0xFF1E88E5)
             val fillColor = primaryColor.copy(alpha = 0.20f)
             val strokeWidthPx = 3.dp.toPx()
-            val handleRadiusPx = 10.dp.toPx()
 
             drawRect(
                 color = fillColor,
