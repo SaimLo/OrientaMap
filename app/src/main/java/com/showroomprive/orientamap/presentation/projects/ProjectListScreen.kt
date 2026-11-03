@@ -66,7 +66,7 @@ fun ProjectListScreen(
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .testTag("project_card")
+                            .testTag("project_card_${project.id}")
                     ) {
                         Column(modifier = Modifier.padding(12.dp)) {
                             Text(project.name, style = MaterialTheme.typography.titleMedium)
@@ -74,7 +74,7 @@ fun ProjectListScreen(
                             Row(modifier = Modifier.fillMaxWidth()) {
                                 TextButton(
                                     onClick = { onOpenProject(project) },
-                                    modifier = Modifier.testTag("open_project_button")
+                                    modifier = Modifier.testTag("open_project_button_${project.id}")
                                 ) {
                                     Text("Ouvrir")
                                 }
@@ -83,7 +83,7 @@ fun ProjectListScreen(
                                 }
                                 TextButton(
                                     onClick = { onDeleteProject(project) },
-                                    modifier = Modifier.testTag("delete_project_button")
+                                    modifier = Modifier.testTag("delete_project_button_${project.id}")
                                 ) {
                                     Text("Supprimer")
                                 }
