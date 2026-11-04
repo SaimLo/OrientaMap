@@ -78,7 +78,10 @@ fun ProjectListScreen(
                                 ) {
                                     Text("Ouvrir")
                                 }
-                                TextButton(onClick = { projectToRename = project }) {
+                                TextButton(
+                                    onClick = { projectToRename = project },
+                                    modifier = Modifier.testTag("rename_project_button_${project.id}")
+                                ) {
                                     Text("Renommer")
                                 }
                                 TextButton(
@@ -106,7 +109,9 @@ fun ProjectListScreen(
                     onValueChange = { newName = it },
                     label = { Text("Nom du projet") },
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("rename_input")
                 )
             },
             confirmButton = {
@@ -118,13 +123,17 @@ fun ProjectListScreen(
                             projectToRename = null
                         }
                     },
-                    enabled = newName.isNotBlank()
+                    enabled = newName.isNotBlank(),
+                    modifier = Modifier.testTag("rename_confirm_button")
                 ) {
                     Text("Valider")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { projectToRename = null }) {
+                TextButton(
+                    onClick = { projectToRename = null },
+                    modifier = Modifier.testTag("rename_cancel_button")
+                ) {
                     Text("Annuler")
                 }
             }

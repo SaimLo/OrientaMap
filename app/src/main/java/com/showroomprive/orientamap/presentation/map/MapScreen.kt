@@ -86,23 +86,23 @@ fun MapScreen(
     onBack: () -> Unit,
     locationProvider: LocationProvider? = null,
     mapController: MapController? = null,
-    mapContent: @Composable () -> Unit = {
+    hasLocationPermission: Boolean = locationProvider != null || hasLocationPermission(LocalContext.current),
+    mapContent: @Composable (onControllerReady: (MapController) -> Unit) -> Unit = { onControllerReady ->
         var mapInstance by remember { mutableStateOf<MapLibreMap?>(null) }
         var cameraTick by remember { mutableIntStateOf(0) }
-        val viewModel: MapViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
         MapLibreView(
             modifier = Modifier.fillMaxSize().testTag("map_view"),
             onMapReady = { map ->
                 mapInstance = map
                 val ctrl = MapLibreMapController(map)
                 map.ensureLocationMarker()
-                viewModel.location?.let { ctrl.updateUserLocation(it) }
                 if (map.cameraPosition.zoom < 2.0) {
                     map.cameraPosition = CameraPosition.Builder()
                         .target(LatLng(46.6, 2.4))
                         .zoom(5.2)
                         .build()
                 }
+                onControllerReady(ctrl)
             },
             onCameraMove = {
                 cameraTick++
@@ -112,22 +112,22 @@ fun MapScreen(
     viewModel: MapViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
 ) {
     val context = LocalContext.current
-    val activeLocationProvider = remember(locationProvider) {
+    val activeLocationProvider = remember(locationProvider, context) {
         locationProvider ?: LocationTracker(context)
     }
-    var mapInstance by remember { mutableStateOf<MapLibreMap?>(null) }
+    var internalMapController by remember { mutableStateOf<MapController?>(null) }
     var cameraTick by remember { mutableIntStateOf(0) }
-    var hasPermission by remember { mutableStateOf(hasLocationPermission(context)) }
+    var hasPermissionState by remember(hasLocationPermission) { mutableStateOf(hasLocationPermission) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
-        hasPermission = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+        hasPermissionState = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
             permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
     }
 
-    LaunchedEffect(Unit) {
-        if (!hasPermission) {
+    LaunchedEffect(hasPermissionState) {
+        if (!hasPermissionState && locationProvider == null) {
             permissionLauncher.launch(
                 arrayOf(
                     Manifest.permission.ACCESS_FINE_LOCATION,
@@ -137,8 +137,8 @@ fun MapScreen(
         }
     }
 
-    DisposableEffect(hasPermission, activeLocationProvider) {
-        if (hasPermission) {
+    DisposableEffect(hasPermissionState, activeLocationProvider) {
+        if (hasPermissionState) {
             activeLocationProvider.start { newLocation ->
                 viewModel.updateLocation(newLocation)
             }
@@ -146,19 +146,17 @@ fun MapScreen(
         onDispose { activeLocationProvider.stop() }
     }
 
-    val activeController = mapController ?: remember(mapInstance) {
-        mapInstance?.let { MapLibreMapController(it) }
-    }
+    val activeController = mapController ?: internalMapController
 
     LaunchedEffect(viewModel.location, activeController) {
         val currentLocation = viewModel.location
         val ctrl = activeController
         if (currentLocation != null && ctrl != null) {
             ctrl.updateUserLocation(currentLocation)
-        }
-        if (!viewModel.centeredOnLocation && currentLocation != null && ctrl != null) {
-            ctrl.moveCameraTo(currentLocation)
-            viewModel.centeredOnLocation = true
+            if (!viewModel.centeredOnLocation) {
+                ctrl.moveCameraTo(currentLocation)
+                viewModel.centeredOnLocation = true
+            }
         }
     }
 
@@ -178,14 +176,16 @@ fun MapScreen(
         val heightPx = containerHeightPx
 
         // Map component
-        mapContent()
+        mapContent { ctrl ->
+            internalMapController = ctrl
+        }
 
         // Isolated zone selection section
         if (viewModel.isSelectionModeActive && widthPx > 0f && heightPx > 0f) {
             ZoneSelectionSection(
                 containerWidth = widthPx,
                 containerHeight = heightPx,
-                mapInstance = mapInstance,
+                mapInstance = null,
                 cameraTick = cameraTick,
                 viewModel = viewModel,
                 onCancel = { viewModel.isSelectionModeActive = false }
@@ -213,14 +213,22 @@ fun MapScreen(
                 ) {
                     Text(projectTitle, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     Text(
-                        text = if (hasPermission) "GPS actif" else "Permission GPS requise",
-                        color = if (hasPermission) Color(0xFF167A32) else MaterialTheme.colorScheme.error,
+                        text = if (hasPermissionState) "GPS actif" else "Permission GPS requise",
+                        color = if (hasPermissionState) Color(0xFF167A32) else MaterialTheme.colorScheme.error,
                         style = MaterialTheme.typography.bodySmall,
                         modifier = Modifier.testTag("gps_status")
                     )
                     viewModel.location?.let { current ->
-                        Text("${"%.5f".format(Locale.US, current.latitude)}, ${"%.5f".format(Locale.US, current.longitude)}", style = MaterialTheme.typography.bodySmall)
-                        Text("Précision : ${"%.1f".format(Locale.US, current.accuracy)} m", style = MaterialTheme.typography.bodySmall)
+                        Text(
+                            text = "${"%.5f".format(Locale.US, current.latitude)}, ${"%.5f".format(Locale.US, current.longitude)}",
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.testTag("location_coordinates")
+                        )
+                        Text(
+                            text = "Précision : ${"%.1f".format(Locale.US, current.accuracy)} m",
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.testTag("location_accuracy")
+                        )
                     }
 
                     Spacer(modifier = Modifier.height(4.dp))
