@@ -8,6 +8,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.drag
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -39,15 +40,18 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
@@ -452,21 +456,26 @@ private fun SelectionHandleZone(
     onRectChange: (Rect) -> Unit,
     resizeFunction: (Rect, Offset, Size, Float) -> Rect
 ) {
+    val currentRect by rememberUpdatedState(rect)
+    val currentOnRectChange by rememberUpdatedState(onRectChange)
+    val handleSizePx = with(LocalDensity.current) { 48.dp.toPx() }
+
     Box(
         modifier = Modifier
-            .testTag(tag)
-            .size(48.dp)
             .offset {
                 androidx.compose.ui.unit.IntOffset(
-                    (position.x - 24.dp.toPx()).roundToInt(),
-                    (position.y - 24.dp.toPx()).roundToInt()
+                    (position.x - handleSizePx / 2f).roundToInt(),
+                    (position.y - handleSizePx / 2f).roundToInt()
                 )
             }
-            .pointerInput(resizeFunction, containerSize, minSize, rect) {
+            .size(48.dp)
+            .zIndex(10f)
+            .testTag(tag)
+            .pointerInput(resizeFunction, containerSize, minSize) {
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
                     val startPoint = down.position
-                    val startRect = rect
+                    val startRect = currentRect
                     down.consume()
                     try {
                         drag(down.id) { change ->
@@ -474,7 +483,7 @@ private fun SelectionHandleZone(
                             val updated = resizeFunction(startRect, delta, containerSize, minSize)
                             if (updated != startRect) {
                                 change.consume()
-                                onRectChange(updated)
+                                currentOnRectChange(updated)
                             }
                         }
                     } finally {

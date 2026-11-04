@@ -248,18 +248,20 @@ class MapScreenUiTest {
         }
 
         composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithTag("selection_overlay").assertIsDisplayed()
 
         // 1. Top-Left Handle
         val r1 = viewModel.selectionRect!!
         composeTestRule.onNodeWithTag("selection_handle_top_left").performTouchInput {
             down(center)
-            moveBy(Offset(30f, 40f))
+            moveBy(Offset(30f, 30f))
             up()
         }
+        composeTestRule.waitForIdle()
         composeTestRule.runOnIdle {
             val updated = viewModel.selectionRect!!
             assertEquals(r1.left + 30f, updated.left, 1f)
-            assertEquals(r1.top + 40f, updated.top, 1f)
+            assertEquals(r1.top + 30f, updated.top, 1f)
             assertEquals(r1.right, updated.right, 1f)
             assertEquals(r1.bottom, updated.bottom, 1f)
         }
@@ -268,13 +270,14 @@ class MapScreenUiTest {
         val r2 = viewModel.selectionRect!!
         composeTestRule.onNodeWithTag("selection_handle_top_right").performTouchInput {
             down(center)
-            moveBy(Offset(30f, 40f))
+            moveBy(Offset(30f, 30f))
             up()
         }
+        composeTestRule.waitForIdle()
         composeTestRule.runOnIdle {
             val updated = viewModel.selectionRect!!
             assertEquals(r2.left, updated.left, 1f)
-            assertEquals(r2.top + 40f, updated.top, 1f)
+            assertEquals(r2.top + 30f, updated.top, 1f)
             assertEquals(r2.right + 30f, updated.right, 1f)
             assertEquals(r2.bottom, updated.bottom, 1f)
         }
@@ -283,30 +286,32 @@ class MapScreenUiTest {
         val r3 = viewModel.selectionRect!!
         composeTestRule.onNodeWithTag("selection_handle_bottom_left").performTouchInput {
             down(center)
-            moveBy(Offset(30f, 40f))
+            moveBy(Offset(30f, 30f))
             up()
         }
+        composeTestRule.waitForIdle()
         composeTestRule.runOnIdle {
             val updated = viewModel.selectionRect!!
             assertEquals(r3.left + 30f, updated.left, 1f)
             assertEquals(r3.top, updated.top, 1f)
             assertEquals(r3.right, updated.right, 1f)
-            assertEquals(r3.bottom + 40f, updated.bottom, 1f)
+            assertEquals(r3.bottom + 30f, updated.bottom, 1f)
         }
 
         // 4. Bottom-Right Handle
         val r4 = viewModel.selectionRect!!
         composeTestRule.onNodeWithTag("selection_handle_bottom_right").performTouchInput {
             down(center)
-            moveBy(Offset(30f, 40f))
+            moveBy(Offset(30f, 30f))
             up()
         }
+        composeTestRule.waitForIdle()
         composeTestRule.runOnIdle {
             val updated = viewModel.selectionRect!!
             assertEquals(r4.left, updated.left, 1f)
             assertEquals(r4.top, updated.top, 1f)
             assertEquals(r4.right + 30f, updated.right, 1f)
-            assertEquals(r4.bottom + 40f, updated.bottom, 1f)
+            assertEquals(r4.bottom + 30f, updated.bottom, 1f)
         }
     }
 
