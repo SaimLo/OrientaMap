@@ -5,18 +5,25 @@ import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.down
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.moveBy
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.up
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.showroomprive.orientamap.presentation.map.FakeLocationProvider
 import com.showroomprive.orientamap.presentation.map.FakeMapController
 import com.showroomprive.orientamap.presentation.map.MapScreen
+import com.showroomprive.orientamap.presentation.map.MapViewModel
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -184,6 +191,64 @@ class MapScreenUiTest {
         composeTestRule.onNodeWithContentDescription("Fermer").performClick()
         composeTestRule.runOnIdle {
             assertTrue(backClicked)
+        }
+    }
+
+    @Test
+    fun testZoneSelectionInteractionAndOutsidePassThrough() {
+        val fakeLocationProvider = FakeLocationProvider()
+        val fakeMapController = FakeMapController()
+        val viewModel = MapViewModel().apply {
+            isSelectionModeActive = true
+            selectionRect = Rect(200f, 1400f, 500f, 1700f)
+        }
+
+        composeTestRule.setContent {
+            MapScreen(
+                projectTitle = "Projet Test",
+                onBack = {},
+                locationProvider = fakeLocationProvider,
+                mapController = fakeMapController,
+                viewModel = viewModel,
+                mapContent = { _ ->
+                    Box(modifier = Modifier.fillMaxSize().testTag("map_view"))
+                }
+            )
+        }
+
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithTag("zone_selection_overlay").assertIsDisplayed()
+
+        val initialRect = viewModel.selectionRect ?: Rect.Zero
+
+        // 1. Touch inside selection rectangle (center of initialRect: x=350, y=1550)
+        val centerX = (initialRect.left + initialRect.right) / 2f
+        val centerY = (initialRect.top + initialRect.bottom) / 2f
+
+        composeTestRule.onNodeWithTag("zone_selection_overlay").performTouchInput {
+            down(Offset(centerX, centerY))
+            moveBy(Offset(100f, 100f))
+            up()
+        }
+
+        composeTestRule.runOnIdle {
+            val newRect = viewModel.selectionRect
+            assertTrue("Expected rect to move right, but left was ${newRect?.left}", (newRect?.left ?: 0f) > initialRect.left)
+            assertTrue("Expected rect to move down, but top was ${newRect?.top}", (newRect?.top ?: 0f) > initialRect.top)
+        }
+
+        val rectAfterDrag = viewModel.selectionRect ?: Rect.Zero
+
+        // 2. Touch outside selection rectangle (e.g. at x=50, y=1550)
+        composeTestRule.onNodeWithTag("zone_selection_overlay").performTouchInput {
+            down(Offset(50f, 1550f))
+            moveBy(Offset(50f, 50f))
+            up()
+        }
+
+        composeTestRule.runOnIdle {
+            // Selection rect must remain unchanged
+            assertEquals(rectAfterDrag, viewModel.selectionRect)
         }
     }
 }

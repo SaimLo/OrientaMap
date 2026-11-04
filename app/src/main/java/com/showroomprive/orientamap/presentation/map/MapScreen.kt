@@ -7,10 +7,13 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.drag
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -69,7 +72,7 @@ import kotlin.math.cos
 import kotlin.math.pow
 import kotlin.math.roundToInt
 
-class MapLibreMapController(private val map: MapLibreMap) : MapController {
+class MapLibreMapController(val map: MapLibreMap) : MapController {
     override fun moveCameraTo(location: Location) {
         map.animateCameraToLocation(location)
     }
@@ -160,32 +163,27 @@ fun MapScreen(
         }
     }
 
-    var containerWidthPx by remember { mutableFloatStateOf(0f) }
-    var containerHeightPx by remember { mutableFloatStateOf(0f) }
-
-    Box(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .testTag("map_screen")
-            .onSizeChanged { size ->
-                containerWidthPx = size.width.toFloat()
-                containerHeightPx = size.height.toFloat()
-            }
     ) {
-        val widthPx = containerWidthPx
-        val heightPx = containerHeightPx
+        val widthPx = constraints.maxWidth.toFloat()
+        val heightPx = constraints.maxHeight.toFloat()
 
         // Map component
         mapContent { ctrl ->
             internalMapController = ctrl
         }
 
+        val activeMapInstance = (activeController as? MapLibreMapController)?.map
+
         // Isolated zone selection section
         if (viewModel.isSelectionModeActive && widthPx > 0f && heightPx > 0f) {
             ZoneSelectionSection(
                 containerWidth = widthPx,
                 containerHeight = heightPx,
-                mapInstance = null,
+                mapInstance = activeMapInstance,
                 cameraTick = cameraTick,
                 viewModel = viewModel,
                 onCancel = { viewModel.isSelectionModeActive = false }
@@ -320,8 +318,9 @@ private fun ZoneSelectionSection(
     onCancel: () -> Unit
 ) {
     LaunchedEffect(containerWidth, containerHeight) {
+        if (containerWidth <= 0f || containerHeight <= 0f) return@LaunchedEffect
         val rect = viewModel.selectionRect
-        if (rect == null || rect.right > containerWidth || rect.bottom > containerHeight) {
+        if (rect == null) {
             val marginX = containerWidth * 0.15f
             val marginY = containerHeight * 0.25f
             viewModel.selectionRect = Rect(marginX, marginY, containerWidth - marginX, containerHeight - marginY)
@@ -380,7 +379,6 @@ private fun ZoneSelectionSection(
             containerHeight = containerHeight,
             onRectChange = { viewModel.selectionRect = it },
             onDragStateChanged = { isDraggingSelection = it },
-            isDragging = isDraggingSelection,
             modifier = Modifier.fillMaxSize()
         )
 
@@ -463,13 +461,78 @@ private fun ZoneSelectionSection(
     }
 }
 
-private enum class DragTarget {
+internal enum class DragTarget {
     NONE,
     BODY,
     TOP_LEFT,
     TOP_RIGHT,
     BOTTOM_LEFT,
     BOTTOM_RIGHT
+}
+
+internal fun detectDragTarget(
+    point: Offset,
+    rect: Rect,
+    handleRadius: Float
+): DragTarget {
+    val distTL = (point - Offset(rect.left, rect.top)).getDistance()
+    if (distTL <= handleRadius) return DragTarget.TOP_LEFT
+
+    val distTR = (point - Offset(rect.right, rect.top)).getDistance()
+    if (distTR <= handleRadius) return DragTarget.TOP_RIGHT
+
+    val distBL = (point - Offset(rect.left, rect.bottom)).getDistance()
+    if (distBL <= handleRadius) return DragTarget.BOTTOM_LEFT
+
+    val distBR = (point - Offset(rect.right, rect.bottom)).getDistance()
+    if (distBR <= handleRadius) return DragTarget.BOTTOM_RIGHT
+
+    if (rect.contains(point)) return DragTarget.BODY
+
+    return DragTarget.NONE
+}
+
+internal fun applyDragDelta(
+    target: DragTarget,
+    startRect: Rect,
+    delta: Offset,
+    containerWidth: Float,
+    containerHeight: Float,
+    minSize: Float = 80f
+): Rect {
+    val r = startRect
+    return when (target) {
+        DragTarget.BODY -> {
+            val w = r.width
+            val h = r.height
+            val maxLeft = (containerWidth - w).coerceAtLeast(0f)
+            val maxTop = (containerHeight - h).coerceAtLeast(0f)
+            val newLeft = (r.left + delta.x).coerceIn(0f, maxLeft)
+            val newTop = (r.top + delta.y).coerceIn(0f, maxTop)
+            Rect(newLeft, newTop, newLeft + w, newTop + h)
+        }
+        DragTarget.TOP_LEFT -> {
+            val newLeft = (r.left + delta.x).coerceIn(0f, r.right - minSize)
+            val newTop = (r.top + delta.y).coerceIn(0f, r.bottom - minSize)
+            Rect(newLeft, newTop, r.right, r.bottom)
+        }
+        DragTarget.TOP_RIGHT -> {
+            val newRight = (r.right + delta.x).coerceIn(r.left + minSize, containerWidth)
+            val newTop = (r.top + delta.y).coerceIn(0f, r.bottom - minSize)
+            Rect(r.left, newTop, newRight, r.bottom)
+        }
+        DragTarget.BOTTOM_LEFT -> {
+            val newLeft = (r.left + delta.x).coerceIn(0f, r.right - minSize)
+            val newBottom = (r.bottom + delta.y).coerceIn(r.top + minSize, containerHeight)
+            Rect(newLeft, r.top, r.right, newBottom)
+        }
+        DragTarget.BOTTOM_RIGHT -> {
+            val newRight = (r.right + delta.x).coerceIn(r.left + minSize, containerWidth)
+            val newBottom = (r.bottom + delta.y).coerceIn(r.top + minSize, containerHeight)
+            Rect(r.left, r.top, newRight, newBottom)
+        }
+        DragTarget.NONE -> r
+    }
 }
 
 @Composable
@@ -479,106 +542,55 @@ private fun ZoneSelectionOverlay(
     containerHeight: Float,
     onRectChange: (Rect) -> Unit,
     onDragStateChanged: (Boolean) -> Unit,
-    isDragging: Boolean,
     modifier: Modifier = Modifier
 ) {
-    val handleTouchRadius = 56f
-    val minSize = 80f
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val handleTouchRadius = remember(density) { with(density) { 48.dp.toPx() } }
+    val minSize = remember(density) { with(density) { 80.dp.toPx() } }
 
     val currentRect = rememberUpdatedState(rect)
     val currentOnRectChange = rememberUpdatedState(onRectChange)
     val currentOnDragStateChanged = rememberUpdatedState(onDragStateChanged)
 
-    var initialBoundsForDrag by remember { mutableStateOf<Rect?>(null) }
-
-    val activeBounds = if (isDragging && initialBoundsForDrag != null) {
-        initialBoundsForDrag!!
-    } else {
-        val l = (rect.left - handleTouchRadius).coerceAtLeast(0f)
-        val t = (rect.top - handleTouchRadius).coerceAtLeast(0f)
-        val right = (rect.right + handleTouchRadius).coerceAtMost(containerWidth)
-        val b = (rect.bottom + handleTouchRadius).coerceAtMost(containerHeight)
-        Rect(l, t, right, b)
-    }
-
     Box(
         modifier = modifier
-            .bounds(activeBounds.left, activeBounds.top, activeBounds.right, activeBounds.bottom)
+            .testTag("zone_selection_overlay")
+            .fillMaxSize()
             .pointerInput(containerWidth, containerHeight) {
-                awaitPointerEventScope {
-                    while (true) {
-                        val down = awaitFirstDown(requireUnconsumed = false)
-                        val offset = down.position
-                        val globalOffset = Offset(offset.x + activeBounds.left, offset.y + activeBounds.top)
-                        val activeRect = currentRect.value
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    val startPoint = down.position
+                    val startRect = currentRect.value
+                    val target = detectDragTarget(startPoint, startRect, handleTouchRadius)
 
-                        val distTL = (globalOffset - Offset(activeRect.left, activeRect.top)).getDistance()
-                        val distTR = (globalOffset - Offset(activeRect.right, activeRect.top)).getDistance()
-                        val distBL = (globalOffset - Offset(activeRect.left, activeRect.bottom)).getDistance()
-                        val distBR = (globalOffset - Offset(activeRect.right, activeRect.bottom)).getDistance()
-
-                        val target = when {
-                            distTL <= handleTouchRadius -> DragTarget.TOP_LEFT
-                            distTR <= handleTouchRadius -> DragTarget.TOP_RIGHT
-                            distBL <= handleTouchRadius -> DragTarget.BOTTOM_LEFT
-                            distBR <= handleTouchRadius -> DragTarget.BOTTOM_RIGHT
-                            activeRect.contains(globalOffset) -> DragTarget.BODY
-                            else -> DragTarget.NONE
-                        }
-
-                        if (target != DragTarget.NONE) {
-                            down.consume()
-                            initialBoundsForDrag = activeBounds
-                            currentOnDragStateChanged.value(true)
-
-                            val startRect = activeRect
-                            val startGlobalOffset = globalOffset
+                    if (target != DragTarget.NONE) {
+                        down.consume()
+                        currentOnDragStateChanged.value(true)
+                        var currentPos = startPoint
+                        try {
                             val pointerId = down.id
-                            try {
-                                drag(pointerId) { change ->
-                                    val totalDrag = change.position - startGlobalOffset
-                                    if (totalDrag != Offset.Zero) {
-                                        change.consume()
-                                        val r = startRect
-                                        val updatedRect = when (target) {
-                                            DragTarget.BODY -> {
-                                                val dx = totalDrag.x
-                                                val dy = totalDrag.y
-                                                val w = r.width
-                                                val h = r.height
-                                                val newLeft = (r.left + dx).coerceIn(0f, containerWidth - w)
-                                                val newTop = (r.top + dy).coerceIn(0f, containerHeight - h)
-                                                Rect(newLeft, newTop, newLeft + w, newTop + h)
-                                            }
-                                            DragTarget.TOP_LEFT -> {
-                                                val newLeft = (r.left + totalDrag.x).coerceIn(0f, r.right - minSize)
-                                                val newTop = (r.top + totalDrag.y).coerceIn(0f, r.bottom - minSize)
-                                                Rect(newLeft, newTop, r.right, r.bottom)
-                                            }
-                                            DragTarget.TOP_RIGHT -> {
-                                                val newRight = (r.right + totalDrag.x).coerceIn(r.left + minSize, containerWidth)
-                                                val newTop = (r.top + totalDrag.y).coerceIn(0f, r.bottom - minSize)
-                                                Rect(r.left, newTop, newRight, r.bottom)
-                                            }
-                                            DragTarget.BOTTOM_LEFT -> {
-                                                val newLeft = (r.left + totalDrag.x).coerceIn(0f, r.right - minSize)
-                                                val newBottom = (r.bottom + totalDrag.y).coerceIn(r.top + minSize, containerHeight)
-                                                Rect(newLeft, r.top, r.right, newBottom)
-                                            }
-                                            DragTarget.BOTTOM_RIGHT -> {
-                                                val newRight = (r.right + totalDrag.x).coerceIn(r.left + minSize, containerWidth)
-                                                val newBottom = (r.bottom + totalDrag.y).coerceIn(r.top + minSize, containerHeight)
-                                                Rect(r.left, r.top, newRight, newBottom)
-                                            }
-                                            else -> r
-                                        }
-                                        currentOnRectChange.value(updatedRect)
-                                    }
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                val change = event.changes.firstOrNull { it.id == pointerId } ?: break
+                                val newPos = change.position
+                                if (newPos != currentPos) {
+                                    change.consume()
+                                    currentPos = newPos
+                                    val delta = newPos - startPoint
+                                    val updated = applyDragDelta(
+                                        target = target,
+                                        startRect = startRect,
+                                        delta = delta,
+                                        containerWidth = containerWidth,
+                                        containerHeight = containerHeight,
+                                        minSize = minSize
+                                    )
+                                    currentOnRectChange.value(updated)
                                 }
-                            } finally {
-                                initialBoundsForDrag = null
-                                currentOnDragStateChanged.value(false)
+                                if (!change.pressed) break
                             }
+                        } finally {
+                            currentOnDragStateChanged.value(false)
                         }
                     }
                 }
@@ -614,18 +626,6 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.fnDrawHandle(center
     val handleRadiusPx = 10.dp.toPx()
     drawCircle(color = Color(0xFF1E88E5), radius = handleRadiusPx, center = center)
     drawCircle(color = Color.White, radius = handleRadiusPx * 0.65f, center = center)
-}
-
-private fun Modifier.bounds(left: Float, top: Float, right: Float, bottom: Float) = this.layout { measurable, constraints ->
-    val width = (right - left).roundToInt().coerceAtLeast(0)
-    val height = (bottom - top).roundToInt().coerceAtLeast(0)
-    val placeable = measurable.measure(constraints.copy(
-        minWidth = width, maxWidth = width,
-        minHeight = height, maxHeight = height
-    ))
-    layout(constraints.maxWidth, constraints.maxHeight) {
-        placeable.placeRelative(left.roundToInt(), top.roundToInt())
-    }
 }
 
 internal fun formatDistance(meters: Double): String {
