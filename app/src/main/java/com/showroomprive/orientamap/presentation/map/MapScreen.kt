@@ -217,34 +217,6 @@ fun MapScreen(
                         style = MaterialTheme.typography.bodySmall,
                         modifier = Modifier.testTag("offline_mode_indicator")
                     )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Button(
-                            onClick = {},
-                            modifier = Modifier.testTag("download_area_button")
-                        ) {
-                            Text("Télécharger")
-                        }
-                        Button(
-                            onClick = {},
-                            modifier = Modifier.testTag("cancel_download_button")
-                        ) {
-                            Text("Annuler")
-                        }
-                        Button(
-                            onClick = {},
-                            modifier = Modifier.testTag("retry_download_button")
-                        ) {
-                            Text("Réessayer")
-                        }
-                    }
-                    Text(
-                        text = "Progression : 0%",
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.testTag("download_progress")
-                    )
 
                     if (!viewModel.isSelectionModeActive) {
                         Spacer(modifier = Modifier.height(8.dp))

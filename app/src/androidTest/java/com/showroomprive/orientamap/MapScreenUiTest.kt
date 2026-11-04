@@ -60,10 +60,6 @@ class MapScreenUiTest {
 
         // Placeholder UI components for offline downloading are displayed
         composeTestRule.onNodeWithTag("offline_mode_indicator").assertIsDisplayed()
-        composeTestRule.onNodeWithTag("download_area_button").assertIsDisplayed()
-        composeTestRule.onNodeWithTag("cancel_download_button").assertIsDisplayed()
-        composeTestRule.onNodeWithTag("retry_download_button").assertIsDisplayed()
-        composeTestRule.onNodeWithTag("download_progress").assertIsDisplayed()
     }
 
     @Test
