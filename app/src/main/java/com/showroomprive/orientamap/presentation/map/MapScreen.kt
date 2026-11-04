@@ -8,7 +8,6 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.drag
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -51,9 +50,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
@@ -117,7 +114,7 @@ fun MapScreen(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
         hasPermissionState = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
-            permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+                permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
     }
 
     LaunchedEffect(hasPermissionState) {
@@ -167,13 +164,14 @@ fun MapScreen(
             internalMapController = ctrl
         }
 
-        // Isolated zone selection section
+        // Non-interactive rectangle canvas. It is rendered before the cards,
+        // so it never blocks MapLibre gestures.
         if (viewModel.isSelectionModeActive && widthPx > 0f && heightPx > 0f) {
-            ZoneSelectionSection(
+            ZoneSelectionCanvas(
                 containerWidth = widthPx,
                 containerHeight = heightPx,
                 viewModel = viewModel,
-                onCancel = { viewModel.isSelectionModeActive = false }
+                modifier = Modifier.fillMaxSize()
             )
         }
 
@@ -264,116 +262,49 @@ fun MapScreen(
                 }
             }
         }
+
+        // The compact action bar is interactive only on its own buttons.
+        if (viewModel.isSelectionModeActive && widthPx > 0f && heightPx > 0f) {
+            SelectionActionBar(
+                containerWidth = widthPx,
+                containerHeight = heightPx,
+                viewModel = viewModel,
+                onCancel = { viewModel.isSelectionModeActive = false },
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(8.dp)
+            )
+
+            // Only the four handle boxes are interactive. The parent itself has
+            // no pointerInput, so map gestures pass through everywhere else.
+            SelectionHandleLayer(
+                containerWidth = widthPx,
+                containerHeight = heightPx,
+                viewModel = viewModel,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .zIndex(20f)
+            )
+        }
     }
 }
 
 @Composable
-private fun ZoneSelectionSection(
+private fun ZoneSelectionCanvas(
     containerWidth: Float,
     containerHeight: Float,
     viewModel: MapViewModel,
-    onCancel: () -> Unit
+    modifier: Modifier = Modifier
 ) {
     LaunchedEffect(containerWidth, containerHeight) {
         if (containerWidth <= 0f || containerHeight <= 0f) return@LaunchedEffect
-        val rect = viewModel.selectionRect
-        if (rect == null) {
-            val marginX = containerWidth * 0.15f
-            val marginY = containerHeight * 0.25f
-            viewModel.selectionRect = Rect(marginX, marginY, containerWidth - marginX, containerHeight - marginY)
+        if (viewModel.selectionRect == null) {
+            viewModel.selectionRect = defaultSelectionRect(containerWidth, containerHeight)
         }
     }
 
-    val selectionRect = viewModel.selectionRect ?: Rect(
-        containerWidth * 0.15f,
-        containerHeight * 0.25f,
-        containerWidth * 0.85f,
-        containerHeight * 0.75f
-    )
-
-    Box(modifier = Modifier.fillMaxSize()) {
-        ZoneSelectionOverlay(
-            rect = selectionRect,
-            containerWidth = containerWidth,
-            containerHeight = containerHeight,
-            onRectChange = { viewModel.selectionRect = it },
-            modifier = Modifier.fillMaxSize()
-        )
-
-        Card(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(8.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)
-            ),
-            elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Sélection de zone",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold
-                )
-
-                IconButton(
-                    onClick = onCancel,
-                    modifier = Modifier
-                        .size(40.dp)
-                        .testTag("selection_cancel_button")
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = "Annuler la sélection",
-                        tint = MaterialTheme.colorScheme.onSurface
-                    )
-                }
-
-                Button(
-                    onClick = {
-                        val marginX = 24f
-                        val marginTop = 160f
-                        val marginBottom = 190f
-                        viewModel.selectionRect = Rect(
-                            marginX,
-                            marginTop,
-                            containerWidth - marginX,
-                            containerHeight - marginBottom
-                        )
-                    },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF2E7D32)
-                    ),
-                    modifier = Modifier
-                        .size(48.dp)
-                        .testTag("selection_validate_button")
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Check,
-                        contentDescription = "Valider la sélection",
-                        tint = Color.White
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ZoneSelectionOverlay(
-    rect: Rect,
-    containerWidth: Float,
-    containerHeight: Float,
-    onRectChange: (Rect) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val density = LocalDensity.current
-    val minSize = with(density) { 80.dp.toPx() }
-    val containerSize = Size(containerWidth, containerHeight)
+    val selectionRect = viewModel.selectionRect
+        ?: defaultSelectionRect(containerWidth, containerHeight)
 
     Box(
         modifier = modifier
@@ -387,60 +318,155 @@ private fun ZoneSelectionOverlay(
 
             drawRect(
                 color = fillColor,
-                topLeft = Offset(rect.left, rect.top),
-                size = Size(rect.width, rect.height)
+                topLeft = Offset(selectionRect.left, selectionRect.top),
+                size = Size(selectionRect.width, selectionRect.height)
             )
 
             drawRect(
                 color = primaryColor,
-                topLeft = Offset(rect.left, rect.top),
-                size = Size(rect.width, rect.height),
+                topLeft = Offset(selectionRect.left, selectionRect.top),
+                size = Size(selectionRect.width, selectionRect.height),
                 style = Stroke(width = strokeWidthPx)
             )
 
-            fnDrawHandle(Offset(rect.left, rect.top))
-            fnDrawHandle(Offset(rect.right, rect.top))
-            fnDrawHandle(Offset(rect.left, rect.bottom))
-            fnDrawHandle(Offset(rect.right, rect.bottom))
+            fnDrawHandle(Offset(selectionRect.left, selectionRect.top))
+            fnDrawHandle(Offset(selectionRect.right, selectionRect.top))
+            fnDrawHandle(Offset(selectionRect.left, selectionRect.bottom))
+            fnDrawHandle(Offset(selectionRect.right, selectionRect.bottom))
         }
+    }
+}
 
+private fun defaultSelectionRect(containerWidth: Float, containerHeight: Float): Rect {
+    val marginX = containerWidth * 0.15f
+    val marginY = containerHeight * 0.25f
+    return Rect(
+        left = marginX,
+        top = marginY,
+        right = containerWidth - marginX,
+        bottom = containerHeight - marginY
+    )
+}
+
+@Composable
+private fun SelectionActionBar(
+    containerWidth: Float,
+    containerHeight: Float,
+    viewModel: MapViewModel,
+    onCancel: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Sélection de zone",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold
+            )
+
+            IconButton(
+                onClick = onCancel,
+                modifier = Modifier
+                    .size(40.dp)
+                    .testTag("selection_cancel_button")
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = "Annuler la sélection",
+                    tint = MaterialTheme.colorScheme.onSurface
+                )
+            }
+
+            Button(
+                onClick = {
+                    val marginX = 24f
+                    val marginTop = 160f
+                    val marginBottom = 190f
+                    viewModel.selectionRect = Rect(
+                        marginX,
+                        marginTop,
+                        containerWidth - marginX,
+                        containerHeight - marginBottom
+                    )
+                },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF2E7D32)
+                ),
+                modifier = Modifier
+                    .size(48.dp)
+                    .testTag("selection_validate_button")
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Check,
+                    contentDescription = "Valider la sélection",
+                    tint = Color.White
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SelectionHandleLayer(
+    containerWidth: Float,
+    containerHeight: Float,
+    viewModel: MapViewModel,
+    modifier: Modifier = Modifier
+) {
+    val density = LocalDensity.current
+    val minSize = with(density) { 80.dp.toPx() }
+    val containerSize = Size(containerWidth, containerHeight)
+    val selectionRect = viewModel.selectionRect
+        ?: defaultSelectionRect(containerWidth, containerHeight)
+
+    Box(modifier = modifier) {
         SelectionHandleZone(
             tag = "selection_handle_top_left",
-            position = Offset(rect.left, rect.top),
+            position = Offset(selectionRect.left, selectionRect.top),
             containerSize = containerSize,
             minSize = minSize,
-            rect = rect,
-            onRectChange = onRectChange,
+            rect = selectionRect,
+            onRectChange = { viewModel.selectionRect = it },
             resizeFunction = ::resizeTopLeft
         )
 
         SelectionHandleZone(
             tag = "selection_handle_top_right",
-            position = Offset(rect.right, rect.top),
+            position = Offset(selectionRect.right, selectionRect.top),
             containerSize = containerSize,
             minSize = minSize,
-            rect = rect,
-            onRectChange = onRectChange,
+            rect = selectionRect,
+            onRectChange = { viewModel.selectionRect = it },
             resizeFunction = ::resizeTopRight
         )
 
         SelectionHandleZone(
             tag = "selection_handle_bottom_left",
-            position = Offset(rect.left, rect.bottom),
+            position = Offset(selectionRect.left, selectionRect.bottom),
             containerSize = containerSize,
             minSize = minSize,
-            rect = rect,
-            onRectChange = onRectChange,
+            rect = selectionRect,
+            onRectChange = { viewModel.selectionRect = it },
             resizeFunction = ::resizeBottomLeft
         )
 
         SelectionHandleZone(
             tag = "selection_handle_bottom_right",
-            position = Offset(rect.right, rect.bottom),
+            position = Offset(selectionRect.right, selectionRect.bottom),
             containerSize = containerSize,
             minSize = minSize,
-            rect = rect,
-            onRectChange = onRectChange,
+            rect = selectionRect,
+            onRectChange = { viewModel.selectionRect = it },
             resizeFunction = ::resizeBottomRight
         )
     }
@@ -469,7 +495,7 @@ private fun SelectionHandleZone(
                 )
             }
             .size(48.dp)
-            .zIndex(10f)
+            .zIndex(30f)
             .testTag(tag)
             .pointerInput(resizeFunction, containerSize, minSize) {
                 awaitEachGesture {
@@ -480,14 +506,19 @@ private fun SelectionHandleZone(
                     try {
                         drag(down.id) { change ->
                             val delta = change.position - startPoint
-                            val updated = resizeFunction(startRect, delta, containerSize, minSize)
+                            val updated = resizeFunction(
+                                startRect,
+                                delta,
+                                containerSize,
+                                minSize
+                            )
                             if (updated != startRect) {
                                 change.consume()
                                 currentOnRectChange(updated)
                             }
                         }
                     } finally {
-                        // done
+                        // Gesture completed or was cancelled.
                     }
                 }
             }
