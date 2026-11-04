@@ -2,6 +2,14 @@ package com.showroomprive.orientamap.presentation.map
 
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
+
+enum class SelectionHandle {
+    TOP_LEFT,
+    TOP_RIGHT,
+    BOTTOM_LEFT,
+    BOTTOM_RIGHT
+}
 
 internal enum class DragTarget {
     NONE,
@@ -10,6 +18,30 @@ internal enum class DragTarget {
     TOP_RIGHT,
     BOTTOM_LEFT,
     BOTTOM_RIGHT
+}
+
+fun resizeTopLeft(rect: Rect, delta: Offset, containerSize: Size, minSize: Float): Rect {
+    val newLeft = (rect.left + delta.x).coerceIn(0f, rect.right - minSize)
+    val newTop = (rect.top + delta.y).coerceIn(0f, rect.bottom - minSize)
+    return Rect(newLeft, newTop, rect.right, rect.bottom)
+}
+
+fun resizeTopRight(rect: Rect, delta: Offset, containerSize: Size, minSize: Float): Rect {
+    val newRight = (rect.right + delta.x).coerceIn(rect.left + minSize, containerSize.width)
+    val newTop = (rect.top + delta.y).coerceIn(0f, rect.bottom - minSize)
+    return Rect(rect.left, newTop, newRight, rect.bottom)
+}
+
+fun resizeBottomLeft(rect: Rect, delta: Offset, containerSize: Size, minSize: Float): Rect {
+    val newLeft = (rect.left + delta.x).coerceIn(0f, rect.right - minSize)
+    val newBottom = (rect.bottom + delta.y).coerceIn(rect.top + minSize, containerSize.height)
+    return Rect(newLeft, rect.top, rect.right, newBottom)
+}
+
+fun resizeBottomRight(rect: Rect, delta: Offset, containerSize: Size, minSize: Float): Rect {
+    val newRight = (rect.right + delta.x).coerceIn(rect.left + minSize, containerSize.width)
+    val newBottom = (rect.bottom + delta.y).coerceIn(rect.top + minSize, containerSize.height)
+    return Rect(rect.left, rect.top, newRight, newBottom)
 }
 
 internal fun detectDragTarget(
@@ -40,42 +72,13 @@ internal fun updateSelectionRect(
     containerHeight: Float,
     minSize: Float
 ): Rect {
+    val containerSize = Size(containerWidth, containerHeight)
     return when (target) {
-        DragTarget.BODY -> {
-            val newLeft = (startRect.left + delta.x)
-                .coerceIn(0f, (containerWidth - startRect.width).coerceAtLeast(0f))
-            val newTop = (startRect.top + delta.y)
-                .coerceIn(0f, (containerHeight - startRect.height).coerceAtLeast(0f))
-            Rect(newLeft, newTop, newLeft + startRect.width, newTop + startRect.height)
-        }
-        DragTarget.TOP_LEFT -> {
-            val newLeft = (startRect.left + delta.x)
-                .coerceIn(0f, startRect.right - minSize)
-            val newTop = (startRect.top + delta.y)
-                .coerceIn(0f, startRect.bottom - minSize)
-            Rect(newLeft, newTop, startRect.right, startRect.bottom)
-        }
-        DragTarget.TOP_RIGHT -> {
-            val newRight = (startRect.right + delta.x)
-                .coerceIn(startRect.left + minSize, containerWidth)
-            val newTop = (startRect.top + delta.y)
-                .coerceIn(0f, startRect.bottom - minSize)
-            Rect(startRect.left, newTop, newRight, startRect.bottom)
-        }
-        DragTarget.BOTTOM_LEFT -> {
-            val newLeft = (startRect.left + delta.x)
-                .coerceIn(0f, startRect.right - minSize)
-            val newBottom = (startRect.bottom + delta.y)
-                .coerceIn(startRect.top + minSize, containerHeight)
-            Rect(newLeft, startRect.top, startRect.right, newBottom)
-        }
-        DragTarget.BOTTOM_RIGHT -> {
-            val newRight = (startRect.right + delta.x)
-                .coerceIn(startRect.left + minSize, containerWidth)
-            val newBottom = (startRect.bottom + delta.y)
-                .coerceIn(startRect.top + minSize, containerHeight)
-            Rect(startRect.left, startRect.top, newRight, newBottom)
-        }
+        DragTarget.BODY -> startRect
+        DragTarget.TOP_LEFT -> resizeTopLeft(startRect, delta, containerSize, minSize)
+        DragTarget.TOP_RIGHT -> resizeTopRight(startRect, delta, containerSize, minSize)
+        DragTarget.BOTTOM_LEFT -> resizeBottomLeft(startRect, delta, containerSize, minSize)
+        DragTarget.BOTTOM_RIGHT -> resizeBottomRight(startRect, delta, containerSize, minSize)
         DragTarget.NONE -> startRect
     }
 }

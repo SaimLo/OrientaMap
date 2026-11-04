@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -367,48 +368,13 @@ private fun ZoneSelectionOverlay(
     modifier: Modifier = Modifier
 ) {
     val density = LocalDensity.current
-    val handleTouchRadius = with(density) { 48.dp.toPx() }
     val minSize = with(density) { 80.dp.toPx() }
+    val containerSize = Size(containerWidth, containerHeight)
 
     Box(
         modifier = modifier
             .fillMaxSize()
             .testTag("selection_overlay")
-            .pointerInput(rect, containerWidth, containerHeight) {
-                awaitEachGesture {
-                    val down = awaitFirstDown(requireUnconsumed = false)
-                    val startPoint = down.position
-                    val target = detectDragTarget(
-                        point = startPoint,
-                        rect = rect,
-                        handleTouchRadius = handleTouchRadius
-                    )
-
-                    if (target != DragTarget.NONE) {
-                        down.consume()
-                        val startRect = rect
-                        try {
-                            drag(down.id) { change ->
-                                val delta = change.position - startPoint
-                                val updatedRect = updateSelectionRect(
-                                    target = target,
-                                    startRect = startRect,
-                                    delta = delta,
-                                    containerWidth = containerWidth,
-                                    containerHeight = containerHeight,
-                                    minSize = minSize
-                                )
-                                if (updatedRect != startRect) {
-                                    change.consume()
-                                    onRectChange(updatedRect)
-                                }
-                            }
-                        } finally {
-                            // Gesture finished.
-                        }
-                    }
-                }
-            }
     ) {
         Canvas(modifier = Modifier.fillMaxSize()) {
             val primaryColor = Color(0xFF1E88E5)
@@ -433,7 +399,90 @@ private fun ZoneSelectionOverlay(
             fnDrawHandle(Offset(rect.left, rect.bottom))
             fnDrawHandle(Offset(rect.right, rect.bottom))
         }
+
+        SelectionHandleZone(
+            tag = "selection_handle_top_left",
+            position = Offset(rect.left, rect.top),
+            containerSize = containerSize,
+            minSize = minSize,
+            rect = rect,
+            onRectChange = onRectChange,
+            resizeFunction = ::resizeTopLeft
+        )
+
+        SelectionHandleZone(
+            tag = "selection_handle_top_right",
+            position = Offset(rect.right, rect.top),
+            containerSize = containerSize,
+            minSize = minSize,
+            rect = rect,
+            onRectChange = onRectChange,
+            resizeFunction = ::resizeTopRight
+        )
+
+        SelectionHandleZone(
+            tag = "selection_handle_bottom_left",
+            position = Offset(rect.left, rect.bottom),
+            containerSize = containerSize,
+            minSize = minSize,
+            rect = rect,
+            onRectChange = onRectChange,
+            resizeFunction = ::resizeBottomLeft
+        )
+
+        SelectionHandleZone(
+            tag = "selection_handle_bottom_right",
+            position = Offset(rect.right, rect.bottom),
+            containerSize = containerSize,
+            minSize = minSize,
+            rect = rect,
+            onRectChange = onRectChange,
+            resizeFunction = ::resizeBottomRight
+        )
     }
+}
+
+@Composable
+private fun SelectionHandleZone(
+    tag: String,
+    position: Offset,
+    containerSize: Size,
+    minSize: Float,
+    rect: Rect,
+    onRectChange: (Rect) -> Unit,
+    resizeFunction: (Rect, Offset, Size, Float) -> Rect
+) {
+    Box(
+        modifier = Modifier
+            .testTag(tag)
+            .size(48.dp)
+            .offset {
+                androidx.compose.ui.unit.IntOffset(
+                    (position.x - 24.dp.toPx()).roundToInt(),
+                    (position.y - 24.dp.toPx()).roundToInt()
+                )
+            }
+            .pointerInput(resizeFunction, containerSize, minSize, rect) {
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    val startPoint = down.position
+                    val startRect = rect
+                    down.consume()
+                    try {
+                        drag(down.id) { change ->
+                            val delta = change.position - startPoint
+                            val updated = resizeFunction(startRect, delta, containerSize, minSize)
+                            if (updated != startRect) {
+                                change.consume()
+                                onRectChange(updated)
+                            }
+                        }
+                    } finally {
+                        // done
+                    }
+                }
+            }
+    )
 }
 
 private fun androidx.compose.ui.graphics.drawscope.DrawScope.fnDrawHandle(center: Offset) {

@@ -57,8 +57,6 @@ class MapScreenUiTest {
         composeTestRule.onNodeWithTag("map_view").assertIsDisplayed()
         composeTestRule.onNodeWithTag("gps_status").assertIsDisplayed().assertTextEquals("GPS actif")
         composeTestRule.onNodeWithText("Projet Test").assertIsDisplayed()
-
-        // Placeholder UI components for offline downloading are displayed
         composeTestRule.onNodeWithTag("offline_mode_indicator").assertIsDisplayed()
     }
 
@@ -140,7 +138,6 @@ class MapScreenUiTest {
         fakeLocationProvider.emitLocation(location2)
         composeTestRule.runOnIdle {
             assertEquals(2, fakeMapController.updatedUserLocations.size)
-            // Camera move must still be 1 (initial centering only once)
             assertEquals(1, fakeMapController.movedCameraLocations.size)
         }
     }
@@ -191,12 +188,12 @@ class MapScreenUiTest {
     }
 
     @Test
-    fun testZoneSelectionInteractionAndOutsidePassThrough() {
+    fun testMapPanningThroughCenterDoesNotMoveRect() {
         val fakeLocationProvider = FakeLocationProvider()
         val fakeMapController = FakeMapController()
         val viewModel = MapViewModel().apply {
             isSelectionModeActive = true
-            selectionRect = Rect(200f, 1400f, 500f, 1700f)
+            selectionRect = Rect(200f, 200f, 600f, 500f)
         }
 
         composeTestRule.setContent {
@@ -213,38 +210,206 @@ class MapScreenUiTest {
         }
 
         composeTestRule.waitForIdle()
-        composeTestRule.onNodeWithTag("zone_selection_overlay").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("selection_overlay").assertIsDisplayed()
 
-        val initialRect = viewModel.selectionRect ?: Rect.Zero
+        val initialRect = viewModel.selectionRect!!
 
-        // 1. Touch inside selection rectangle (center of initialRect: x=350, y=1550)
-        val centerX = (initialRect.left + initialRect.right) / 2f
-        val centerY = (initialRect.top + initialRect.bottom) / 2f
-
-        composeTestRule.onNodeWithTag("zone_selection_overlay").performTouchInput {
-            down(Offset(centerX, centerY))
+        composeTestRule.onNodeWithTag("selection_overlay").performTouchInput {
+            down(Offset(400f, 350f))
             moveBy(Offset(100f, 100f))
             up()
         }
 
         composeTestRule.runOnIdle {
-            val newRect = viewModel.selectionRect
-            assertTrue("Expected rect to move right, but left was ${newRect?.left}", (newRect?.left ?: 0f) > initialRect.left)
-            assertTrue("Expected rect to move down, but top was ${newRect?.top}", (newRect?.top ?: 0f) > initialRect.top)
+            assertEquals(initialRect, viewModel.selectionRect)
+        }
+    }
+
+    @Test
+    fun testZoneSelectionAllHandlesDragging() {
+        val fakeLocationProvider = FakeLocationProvider()
+        val fakeMapController = FakeMapController()
+        val viewModel = MapViewModel().apply {
+            isSelectionModeActive = true
+            selectionRect = Rect(200f, 200f, 600f, 500f)
         }
 
-        val rectAfterDrag = viewModel.selectionRect ?: Rect.Zero
+        composeTestRule.setContent {
+            MapScreen(
+                projectTitle = "Projet Test",
+                onBack = {},
+                locationProvider = fakeLocationProvider,
+                mapController = fakeMapController,
+                viewModel = viewModel,
+                mapContent = { _ ->
+                    Box(modifier = Modifier.fillMaxSize().testTag("map_view"))
+                }
+            )
+        }
 
-        // 2. Touch outside selection rectangle (e.g. at x=50, y=1550)
-        composeTestRule.onNodeWithTag("zone_selection_overlay").performTouchInput {
-            down(Offset(50f, 1550f))
+        composeTestRule.waitForIdle()
+
+        // 1. Top-Left Handle
+        val r1 = viewModel.selectionRect!!
+        composeTestRule.onNodeWithTag("selection_handle_top_left").performTouchInput {
+            down(center)
+            moveBy(Offset(30f, 40f))
+            up()
+        }
+        composeTestRule.runOnIdle {
+            val updated = viewModel.selectionRect!!
+            assertEquals(r1.left + 30f, updated.left, 1f)
+            assertEquals(r1.top + 40f, updated.top, 1f)
+            assertEquals(r1.right, updated.right, 1f)
+            assertEquals(r1.bottom, updated.bottom, 1f)
+        }
+
+        // 2. Top-Right Handle
+        val r2 = viewModel.selectionRect!!
+        composeTestRule.onNodeWithTag("selection_handle_top_right").performTouchInput {
+            down(center)
+            moveBy(Offset(30f, 40f))
+            up()
+        }
+        composeTestRule.runOnIdle {
+            val updated = viewModel.selectionRect!!
+            assertEquals(r2.left, updated.left, 1f)
+            assertEquals(r2.top + 40f, updated.top, 1f)
+            assertEquals(r2.right + 30f, updated.right, 1f)
+            assertEquals(r2.bottom, updated.bottom, 1f)
+        }
+
+        // 3. Bottom-Left Handle
+        val r3 = viewModel.selectionRect!!
+        composeTestRule.onNodeWithTag("selection_handle_bottom_left").performTouchInput {
+            down(center)
+            moveBy(Offset(30f, 40f))
+            up()
+        }
+        composeTestRule.runOnIdle {
+            val updated = viewModel.selectionRect!!
+            assertEquals(r3.left + 30f, updated.left, 1f)
+            assertEquals(r3.top, updated.top, 1f)
+            assertEquals(r3.right, updated.right, 1f)
+            assertEquals(r3.bottom + 40f, updated.bottom, 1f)
+        }
+
+        // 4. Bottom-Right Handle
+        val r4 = viewModel.selectionRect!!
+        composeTestRule.onNodeWithTag("selection_handle_bottom_right").performTouchInput {
+            down(center)
+            moveBy(Offset(30f, 40f))
+            up()
+        }
+        composeTestRule.runOnIdle {
+            val updated = viewModel.selectionRect!!
+            assertEquals(r4.left, updated.left, 1f)
+            assertEquals(r4.top, updated.top, 1f)
+            assertEquals(r4.right + 30f, updated.right, 1f)
+            assertEquals(r4.bottom + 40f, updated.bottom, 1f)
+        }
+    }
+
+    @Test
+    fun testOutsideClicksPassThroughToMap() {
+        val fakeLocationProvider = FakeLocationProvider()
+        val fakeMapController = FakeMapController()
+        val viewModel = MapViewModel().apply {
+            isSelectionModeActive = true
+            selectionRect = Rect(200f, 200f, 600f, 500f)
+        }
+
+        composeTestRule.setContent {
+            MapScreen(
+                projectTitle = "Projet Test",
+                onBack = {},
+                locationProvider = fakeLocationProvider,
+                mapController = fakeMapController,
+                viewModel = viewModel,
+                mapContent = { _ ->
+                    Box(modifier = Modifier.fillMaxSize().testTag("map_view"))
+                }
+            )
+        }
+
+        composeTestRule.waitForIdle()
+        val initialRect = viewModel.selectionRect!!
+
+        composeTestRule.onNodeWithTag("selection_overlay").performTouchInput {
+            down(Offset(50f, 50f))
             moveBy(Offset(50f, 50f))
             up()
         }
 
         composeTestRule.runOnIdle {
-            // Selection rect must remain unchanged
-            assertEquals(rectAfterDrag, viewModel.selectionRect)
+            assertEquals(initialRect, viewModel.selectionRect)
         }
+    }
+
+    @Test
+    fun testCancelAndValidateButtons() {
+        val fakeLocationProvider = FakeLocationProvider()
+        val fakeMapController = FakeMapController()
+        val viewModel = MapViewModel().apply {
+            isSelectionModeActive = true
+            selectionRect = Rect(200f, 200f, 600f, 500f)
+        }
+
+        composeTestRule.setContent {
+            MapScreen(
+                projectTitle = "Projet Test",
+                onBack = {},
+                locationProvider = fakeLocationProvider,
+                mapController = fakeMapController,
+                viewModel = viewModel,
+                mapContent = { _ ->
+                    Box(modifier = Modifier.fillMaxSize().testTag("map_view"))
+                }
+            )
+        }
+
+        composeTestRule.waitForIdle()
+        assertTrue(viewModel.isSelectionModeActive)
+
+        composeTestRule.onNodeWithTag("selection_cancel_button").performClick()
+        composeTestRule.runOnIdle {
+            assertEquals(false, viewModel.isSelectionModeActive)
+        }
+
+        viewModel.isSelectionModeActive = true
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithTag("selection_validate_button").performClick()
+        composeTestRule.runOnIdle {
+            assertTrue(viewModel.selectionRect != null)
+        }
+    }
+
+    @Test
+    fun testNoWidthHeightAreaInfoDisplayed() {
+        val fakeLocationProvider = FakeLocationProvider()
+        val fakeMapController = FakeMapController()
+        val viewModel = MapViewModel().apply {
+            isSelectionModeActive = true
+            selectionRect = Rect(200f, 200f, 600f, 500f)
+        }
+
+        composeTestRule.setContent {
+            MapScreen(
+                projectTitle = "Projet Test",
+                onBack = {},
+                locationProvider = fakeLocationProvider,
+                mapController = fakeMapController,
+                viewModel = viewModel,
+                mapContent = { _ ->
+                    Box(modifier = Modifier.fillMaxSize().testTag("map_view"))
+                }
+            )
+        }
+
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithText("Largeur", substring = true).assertDoesNotExist()
+        composeTestRule.onNodeWithText("Hauteur", substring = true).assertDoesNotExist()
+        composeTestRule.onNodeWithText("Surface", substring = true).assertDoesNotExist()
+        composeTestRule.onNodeWithText("m²", substring = true).assertDoesNotExist()
     }
 }

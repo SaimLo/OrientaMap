@@ -38,7 +38,7 @@ class SelectionGeometryTest {
     }
 
     @Test
-    fun bodyMoveStaysInsideContainer() {
+    fun bodyMoveDoesNotMoveRect() {
         val result = updateSelectionRect(
             target = DragTarget.BODY,
             startRect = rect,
@@ -47,10 +47,7 @@ class SelectionGeometryTest {
             containerHeight = 600f,
             minSize = 80f
         )
-        assertEquals(400f, result.left, 0.001f)
-        assertEquals(300f, result.top, 0.001f)
-        assertTrue(result.right <= 800f)
-        assertTrue(result.bottom <= 600f)
+        assertEquals(rect, result)
     }
 
     @Test

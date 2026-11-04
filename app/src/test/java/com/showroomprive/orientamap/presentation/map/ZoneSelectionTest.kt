@@ -133,7 +133,7 @@ class ZoneSelectionTest {
     }
 
     @Test
-    fun testUpdateSelectionRectBodyMovePreservesSize() {
+    fun testUpdateSelectionRectBodyMoveDoesNotMoveRect() {
         val delta = Offset(50f, 50f)
         val updated = updateSelectionRect(
             target = DragTarget.BODY,
@@ -143,12 +143,7 @@ class ZoneSelectionTest {
             containerHeight = containerHeight,
             minSize = 80f
         )
-        assertEquals(150f, updated.left)
-        assertEquals(150f, updated.top)
-        assertEquals(350f, updated.right)
-        assertEquals(350f, updated.bottom)
-        assertEquals(rect.width, updated.width)
-        assertEquals(rect.height, updated.height)
+        assertEquals(rect, updated)
     }
 
     @Test
@@ -171,9 +166,9 @@ class ZoneSelectionTest {
 
     @Test
     fun testUpdateSelectionRectClampsToContainerBounds() {
-        val delta = Offset(-200f, -200f) // Try to move outside top-left
+        val delta = Offset(-200f, -200f) // Try to move outside top-left using top-left handle
         val updated = updateSelectionRect(
-            target = DragTarget.BODY,
+            target = DragTarget.TOP_LEFT,
             startRect = rect,
             delta = delta,
             containerWidth = containerWidth,
@@ -182,7 +177,7 @@ class ZoneSelectionTest {
         )
         assertEquals(0f, updated.left)
         assertEquals(0f, updated.top)
-        assertEquals(rect.width, updated.width)
-        assertEquals(rect.height, updated.height)
+        assertEquals(rect.right, updated.right)
+        assertEquals(rect.bottom, updated.bottom)
     }
 }
