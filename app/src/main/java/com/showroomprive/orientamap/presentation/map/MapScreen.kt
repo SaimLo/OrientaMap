@@ -1,7 +1,6 @@
 package com.showroomprive.orientamap.presentation.map
 
 import android.Manifest
-import android.graphics.PointF
 import android.location.Location
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -9,7 +8,6 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.drag
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -38,11 +36,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -53,9 +48,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -68,11 +63,9 @@ import org.maplibre.android.style.layers.CircleLayer
 import org.maplibre.android.style.layers.PropertyFactory
 import org.maplibre.android.style.sources.GeoJsonSource
 import java.util.Locale
-import kotlin.math.cos
-import kotlin.math.pow
 import kotlin.math.roundToInt
 
-class MapLibreMapController(val map: MapLibreMap) : MapController {
+class MapLibreMapController(private val map: MapLibreMap) : MapController {
     override fun moveCameraTo(location: Location) {
         map.animateCameraToLocation(location)
     }
@@ -91,12 +84,9 @@ fun MapScreen(
     mapController: MapController? = null,
     hasLocationPermission: Boolean = locationProvider != null || hasLocationPermission(LocalContext.current),
     mapContent: @Composable (onControllerReady: (MapController) -> Unit) -> Unit = { onControllerReady ->
-        var mapInstance by remember { mutableStateOf<MapLibreMap?>(null) }
-        var cameraTick by remember { mutableIntStateOf(0) }
         MapLibreView(
             modifier = Modifier.fillMaxSize().testTag("map_view"),
             onMapReady = { map ->
-                mapInstance = map
                 val ctrl = MapLibreMapController(map)
                 map.ensureLocationMarker()
                 if (map.cameraPosition.zoom < 2.0) {
@@ -107,9 +97,6 @@ fun MapScreen(
                 }
                 onControllerReady(ctrl)
             },
-            onCameraMove = {
-                cameraTick++
-            }
         )
     },
     viewModel: MapViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
@@ -119,7 +106,6 @@ fun MapScreen(
         locationProvider ?: LocationTracker(context)
     }
     var internalMapController by remember { mutableStateOf<MapController?>(null) }
-    var cameraTick by remember { mutableIntStateOf(0) }
     var hasPermissionState by remember(hasLocationPermission) { mutableStateOf(hasLocationPermission) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -176,15 +162,11 @@ fun MapScreen(
             internalMapController = ctrl
         }
 
-        val activeMapInstance = (activeController as? MapLibreMapController)?.map
-
         // Isolated zone selection section
         if (viewModel.isSelectionModeActive && widthPx > 0f && heightPx > 0f) {
             ZoneSelectionSection(
                 containerWidth = widthPx,
                 containerHeight = heightPx,
-                mapInstance = activeMapInstance,
-                cameraTick = cameraTick,
                 viewModel = viewModel,
                 onCancel = { viewModel.isSelectionModeActive = false }
             )
@@ -312,8 +294,6 @@ fun MapScreen(
 private fun ZoneSelectionSection(
     containerWidth: Float,
     containerHeight: Float,
-    mapInstance: MapLibreMap?,
-    cameraTick: Int,
     viewModel: MapViewModel,
     onCancel: () -> Unit
 ) {
@@ -334,204 +314,75 @@ private fun ZoneSelectionSection(
         containerHeight * 0.75f
     )
 
-    var isDraggingSelection by remember { mutableStateOf(false) }
-
-    val (zoneWidthMeters, zoneHeightMeters, zoneAreaM2) = remember(selectionRect, cameraTick, mapInstance, isDraggingSelection) {
-        val map = mapInstance
-        val rect = selectionRect
-        if (map != null) {
-            if (isDraggingSelection) {
-                val zoom = map.cameraPosition.zoom
-                val lat = map.cameraPosition.target?.latitude ?: 46.6
-                val metersPerPixel = 156543.03392 * cos(lat * Math.PI / 180.0) / (2.0.pow(zoom))
-                val w = rect.width * metersPerPixel
-                val h = rect.height * metersPerPixel
-                Triple(w, h, w * h)
-            } else {
-                val pTL = map.projection.fromScreenLocation(PointF(rect.left, rect.top))
-                val pTR = map.projection.fromScreenLocation(PointF(rect.right, rect.top))
-                val pBL = map.projection.fromScreenLocation(PointF(rect.left, rect.bottom))
-                val pBR = map.projection.fromScreenLocation(PointF(rect.right, rect.bottom))
-
-                val distTop = FloatArray(1)
-                Location.distanceBetween(pTL.latitude, pTL.longitude, pTR.latitude, pTR.longitude, distTop)
-                val distBottom = FloatArray(1)
-                Location.distanceBetween(pBL.latitude, pBL.longitude, pBR.latitude, pBR.longitude, distBottom)
-                val w = (distTop[0] + distBottom[0]) / 2.0
-
-                val distLeft = FloatArray(1)
-                Location.distanceBetween(pTL.latitude, pTL.longitude, pBL.latitude, pBL.longitude, distLeft)
-                val distRight = FloatArray(1)
-                Location.distanceBetween(pTR.latitude, pTR.longitude, pBR.latitude, pBR.longitude, distRight)
-                val h = (distLeft[0] + distRight[0]) / 2.0
-
-                Triple(w, h, w * h)
-            }
-        } else {
-            Triple(0.0, 0.0, 0.0)
-        }
-    }
-
     Box(modifier = Modifier.fillMaxSize()) {
         ZoneSelectionOverlay(
             rect = selectionRect,
             containerWidth = containerWidth,
             containerHeight = containerHeight,
             onRectChange = { viewModel.selectionRect = it },
-            onDragStateChanged = { isDraggingSelection = it },
             modifier = Modifier.fillMaxSize()
         )
 
         Card(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .padding(12.dp),
+                .padding(8.dp),
             colors = CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)
             ),
             elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
         ) {
-            Box(modifier = Modifier.fillMaxWidth()) {
-                Column(
-                    modifier = Modifier
-                        .padding(14.dp)
-                        .fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Text(
-                        text = "Mode de sélection de zone",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column {
-                            Text("Largeur", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text(formatDistance(zoneWidthMeters), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
-                        }
-                        Column {
-                            Text("Hauteur", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text(formatDistance(zoneHeightMeters), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
-                        }
-                        Column {
-                            Text("Surface approx.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text(formatArea(zoneAreaM2), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
-                        }
-                    }
-
-                    // Green validation button with only the icon (no text)
-                    Button(
-                        onClick = {
-                            val marginX = 24f
-                            val marginTop = 160f
-                            val marginBottom = 190f
-                            viewModel.selectionRect = Rect(marginX, marginTop, containerWidth - marginX, containerHeight - marginBottom)
-                        },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF2E7D32)
-                        ),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Check,
-                            contentDescription = "Valider la sélection",
-                            tint = Color.White
-                        )
-                    }
-                }
+            Row(
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Sélection de zone",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold
+                )
 
                 IconButton(
                     onClick = onCancel,
                     modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(4.dp)
+                        .size(40.dp)
+                        .testTag("selection_cancel_button")
                 ) {
                     Icon(
                         imageVector = Icons.Default.Close,
-                        contentDescription = "Fermer",
+                        contentDescription = "Annuler la sélection",
                         tint = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+
+                Button(
+                    onClick = {
+                        val marginX = 24f
+                        val marginTop = 160f
+                        val marginBottom = 190f
+                        viewModel.selectionRect = Rect(
+                            marginX,
+                            marginTop,
+                            containerWidth - marginX,
+                            containerHeight - marginBottom
+                        )
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF2E7D32)
+                    ),
+                    modifier = Modifier
+                        .size(48.dp)
+                        .testTag("selection_validate_button")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Check,
+                        contentDescription = "Valider la sélection",
+                        tint = Color.White
                     )
                 }
             }
         }
-    }
-}
-
-internal enum class DragTarget {
-    NONE,
-    BODY,
-    TOP_LEFT,
-    TOP_RIGHT,
-    BOTTOM_LEFT,
-    BOTTOM_RIGHT
-}
-
-internal fun detectDragTarget(
-    point: Offset,
-    rect: Rect,
-    handleRadius: Float
-): DragTarget {
-    val distTL = (point - Offset(rect.left, rect.top)).getDistance()
-    if (distTL <= handleRadius) return DragTarget.TOP_LEFT
-
-    val distTR = (point - Offset(rect.right, rect.top)).getDistance()
-    if (distTR <= handleRadius) return DragTarget.TOP_RIGHT
-
-    val distBL = (point - Offset(rect.left, rect.bottom)).getDistance()
-    if (distBL <= handleRadius) return DragTarget.BOTTOM_LEFT
-
-    val distBR = (point - Offset(rect.right, rect.bottom)).getDistance()
-    if (distBR <= handleRadius) return DragTarget.BOTTOM_RIGHT
-
-    if (rect.contains(point)) return DragTarget.BODY
-
-    return DragTarget.NONE
-}
-
-internal fun applyDragDelta(
-    target: DragTarget,
-    startRect: Rect,
-    delta: Offset,
-    containerWidth: Float,
-    containerHeight: Float,
-    minSize: Float = 80f
-): Rect {
-    val r = startRect
-    return when (target) {
-        DragTarget.BODY -> {
-            val w = r.width
-            val h = r.height
-            val maxLeft = (containerWidth - w).coerceAtLeast(0f)
-            val maxTop = (containerHeight - h).coerceAtLeast(0f)
-            val newLeft = (r.left + delta.x).coerceIn(0f, maxLeft)
-            val newTop = (r.top + delta.y).coerceIn(0f, maxTop)
-            Rect(newLeft, newTop, newLeft + w, newTop + h)
-        }
-        DragTarget.TOP_LEFT -> {
-            val newLeft = (r.left + delta.x).coerceIn(0f, r.right - minSize)
-            val newTop = (r.top + delta.y).coerceIn(0f, r.bottom - minSize)
-            Rect(newLeft, newTop, r.right, r.bottom)
-        }
-        DragTarget.TOP_RIGHT -> {
-            val newRight = (r.right + delta.x).coerceIn(r.left + minSize, containerWidth)
-            val newTop = (r.top + delta.y).coerceIn(0f, r.bottom - minSize)
-            Rect(r.left, newTop, newRight, r.bottom)
-        }
-        DragTarget.BOTTOM_LEFT -> {
-            val newLeft = (r.left + delta.x).coerceIn(0f, r.right - minSize)
-            val newBottom = (r.bottom + delta.y).coerceIn(r.top + minSize, containerHeight)
-            Rect(newLeft, r.top, r.right, newBottom)
-        }
-        DragTarget.BOTTOM_RIGHT -> {
-            val newRight = (r.right + delta.x).coerceIn(r.left + minSize, containerWidth)
-            val newBottom = (r.bottom + delta.y).coerceIn(r.top + minSize, containerHeight)
-            Rect(r.left, r.top, newRight, newBottom)
-        }
-        DragTarget.NONE -> r
     }
 }
 
@@ -541,56 +392,47 @@ private fun ZoneSelectionOverlay(
     containerWidth: Float,
     containerHeight: Float,
     onRectChange: (Rect) -> Unit,
-    onDragStateChanged: (Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val density = androidx.compose.ui.platform.LocalDensity.current
-    val handleTouchRadius = remember(density) { with(density) { 48.dp.toPx() } }
-    val minSize = remember(density) { with(density) { 80.dp.toPx() } }
-
-    val currentRect = rememberUpdatedState(rect)
-    val currentOnRectChange = rememberUpdatedState(onRectChange)
-    val currentOnDragStateChanged = rememberUpdatedState(onDragStateChanged)
+    val density = LocalDensity.current
+    val handleTouchRadius = with(density) { 48.dp.toPx() }
+    val minSize = with(density) { 80.dp.toPx() }
 
     Box(
         modifier = modifier
-            .testTag("zone_selection_overlay")
             .fillMaxSize()
-            .pointerInput(containerWidth, containerHeight) {
+            .testTag("selection_overlay")
+            .pointerInput(rect, containerWidth, containerHeight) {
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
                     val startPoint = down.position
-                    val startRect = currentRect.value
-                    val target = detectDragTarget(startPoint, startRect, handleTouchRadius)
+                    val target = detectDragTarget(
+                        point = startPoint,
+                        rect = rect,
+                        handleTouchRadius = handleTouchRadius
+                    )
 
                     if (target != DragTarget.NONE) {
                         down.consume()
-                        currentOnDragStateChanged.value(true)
-                        var currentPos = startPoint
+                        val startRect = rect
                         try {
-                            val pointerId = down.id
-                            while (true) {
-                                val event = awaitPointerEvent()
-                                val change = event.changes.firstOrNull { it.id == pointerId } ?: break
-                                val newPos = change.position
-                                if (newPos != currentPos) {
+                            drag(down.id) { change ->
+                                val delta = change.position - startPoint
+                                val updatedRect = updateSelectionRect(
+                                    target = target,
+                                    startRect = startRect,
+                                    delta = delta,
+                                    containerWidth = containerWidth,
+                                    containerHeight = containerHeight,
+                                    minSize = minSize
+                                )
+                                if (updatedRect != startRect) {
                                     change.consume()
-                                    currentPos = newPos
-                                    val delta = newPos - startPoint
-                                    val updated = applyDragDelta(
-                                        target = target,
-                                        startRect = startRect,
-                                        delta = delta,
-                                        containerWidth = containerWidth,
-                                        containerHeight = containerHeight,
-                                        minSize = minSize
-                                    )
-                                    currentOnRectChange.value(updated)
+                                    onRectChange(updatedRect)
                                 }
-                                if (!change.pressed) break
                             }
                         } finally {
-                            currentOnDragStateChanged.value(false)
+                            // Gesture finished.
                         }
                     }
                 }
@@ -626,31 +468,6 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.fnDrawHandle(center
     val handleRadiusPx = 10.dp.toPx()
     drawCircle(color = Color(0xFF1E88E5), radius = handleRadiusPx, center = center)
     drawCircle(color = Color.White, radius = handleRadiusPx * 0.65f, center = center)
-}
-
-internal fun formatDistance(meters: Double): String {
-    return if (meters < 1000.0) {
-        "${meters.roundToInt()} m"
-    } else {
-        "%.2f km".format(Locale.US, meters / 1000.0)
-    }
-}
-
-internal fun formatArea(areaM2: Double): String {
-    return when {
-        areaM2 < 10_000.0 -> {
-            "${areaM2.roundToInt()} m²"
-        }
-        areaM2 < 1_000_000.0 -> {
-            val ha = areaM2 / 10_000.0
-            "%.2f ha (%d m²)".format(Locale.US, ha, areaM2.roundToInt())
-        }
-        else -> {
-            val km2 = areaM2 / 1_000_000.0
-            val ha = areaM2 / 10_000.0
-            "%.2f km² (%.1f ha)".format(km2, ha)
-        }
-    }
 }
 
 private fun hasLocationPermission(context: android.content.Context): Boolean {
