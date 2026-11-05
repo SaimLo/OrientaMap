@@ -69,7 +69,7 @@ class OfflinePackagesViewModel(
                 projectId = projectId,
                 name = "Plan IGN",
                 minZoom = 10,
-                maxZoom = 14,
+                maxZoom = 16,
                 averageTileBytes = 50_000L
             ) ?: return@launch
             coordinator.start(packageId)

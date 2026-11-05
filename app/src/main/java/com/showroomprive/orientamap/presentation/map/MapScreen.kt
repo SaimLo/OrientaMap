@@ -74,12 +74,16 @@ import org.maplibre.android.style.layers.LineLayer
 import org.maplibre.android.style.layers.PropertyFactory
 import org.maplibre.android.style.sources.GeoJsonSource
 import java.util.Locale
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlin.math.roundToInt
 
 class MapLibreMapController(private val map: MapLibreMap) : MapController {
     override fun moveCameraTo(location: Location) {
         map.animateCameraToLocation(location)
     }
+
+    override fun currentZoom(): Double = map.cameraPosition.zoom
 
     override fun updateUserLocation(location: Location) {
         map.ensureLocationMarker()
@@ -137,6 +141,7 @@ fun MapScreen(
             modifier = Modifier.fillMaxSize().testTag("map_view"),
             onMapReady = { map ->
                 val ctrl = MapLibreMapController(map)
+                map.setMaxZoomPreference(16.0)
                 map.ensureLocationMarker()
                 if (map.cameraPosition.zoom < 2.0) {
                     map.cameraPosition = CameraPosition.Builder()
@@ -194,6 +199,14 @@ fun MapScreen(
 
     val activeController = mapController ?: internalMapController
     val screenCoordinateProjector = activeController?.screenCoordinateProjector()
+    var currentZoom by remember { mutableStateOf<Double?>(null) }
+
+    LaunchedEffect(activeController) {
+        while (isActive) {
+            currentZoom = activeController?.currentZoom()
+            delay(250)
+        }
+    }
     val areaLocked = projectStatus != ProjectStatus.BROUILLON || viewModel.selectedGeoBounds != null
 
     LaunchedEffect(areaLocked) {
@@ -293,6 +306,13 @@ fun MapScreen(
                         style = MaterialTheme.typography.bodySmall,
                         modifier = Modifier.testTag("project_status")
                     )
+                    currentZoom?.let { zoom ->
+                        Text(
+                            text = "Zoom : ${"%.1f".format(Locale.US, zoom)}",
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.testTag("map_zoom_indicator")
+                        )
+                    }
                     Text(
                         text = if (offlinePackages.any { it.status == OfflinePackageStatus.TERMINE }) {
                             "Disponible hors connexion"
@@ -411,7 +431,7 @@ private fun OfflinePackageCard(
     if (offlinePackage == null) {
         Text(text = "Aucun paquet préparé", style = MaterialTheme.typography.bodySmall)
         Text(
-            text = "Niveaux de zoom : 10 à 14",
+            text = "Niveaux de zoom : 10 à 16",
             style = MaterialTheme.typography.bodySmall,
             modifier = Modifier.testTag("download_zoom_selector")
         )

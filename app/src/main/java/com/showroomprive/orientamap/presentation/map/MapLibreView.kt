@@ -10,6 +10,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
+import com.showroomprive.orientamap.config.MapStyleConfig
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.Style
@@ -47,7 +48,7 @@ fun MapLibreView(
             map.addOnCameraMoveListener {
                 currentOnCameraMove.value?.invoke()
             }
-            map.setStyle(Style.Builder().fromUri("asset://styles/ign_plan.json")) {
+            map.setStyle(Style.Builder().fromUri(MapStyleConfig.IGN_STYLE_URI)) {
                 currentOnMapReady.value(map)
             }
         }

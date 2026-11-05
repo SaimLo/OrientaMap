@@ -2,6 +2,7 @@ package com.showroomprive.orientamap.data.maplibre
 
 import android.content.Context
 import android.util.Log
+import com.showroomprive.orientamap.config.MapStyleConfig
 import com.showroomprive.orientamap.domain.model.OfflinePackage
 import com.showroomprive.orientamap.domain.repository.OfflineDownloadObserver
 import com.showroomprive.orientamap.domain.repository.OfflineDownloadProgress
@@ -16,7 +17,7 @@ import org.maplibre.android.offline.OfflineTilePyramidRegionDefinition
 
 class MapLibreOfflineDownloader(
     context: Context,
-    private val styleUri: String = "https://raw.githubusercontent.com/SaimLo/OrientaMap/bf5bad3afa76ff64373ac4d8eea162341b6232d6/app/src/main/assets/styles/ign_plan.json",
+    private val styleUri: String = MapStyleConfig.IGN_STYLE_URI,
     private val pixelRatio: Float = 1f
 ) : OfflineDownloader {
     private val offlineManager = OfflineManager.getInstance(context.applicationContext)
@@ -49,17 +50,11 @@ class MapLibreOfflineDownloader(
             .toString()
             .toByteArray(Charsets.UTF_8)
 
-        Log.d(
-            TAG,
-            "create package=${offlinePackage.id} bounds=${offlinePackage.bounds} " +
-                "zoom=${offlinePackage.minZoom}-${offlinePackage.maxZoom} style=$styleUri"
-        )
         offlineManager.createOfflineRegion(
             definition,
             metadata,
             object : OfflineManager.CreateOfflineRegionCallback {
                 override fun onCreate(region: OfflineRegion) {
-                    Log.d(TAG, "region created id=${region.id}")
                     observer.onRegionCreated(region.id)
                     region.setObserver(createObserver(region.id, observer))
                     region.setDownloadState(OfflineRegion.STATE_ACTIVE)
@@ -121,21 +116,14 @@ class MapLibreOfflineDownloader(
                 onResult(error ?: "Région MapLibre introuvable")
                 return@findRegion
             }
-            Log.d(TAG, "set state=$state region=$regionId")
             region.setDownloadState(state)
             region.getStatus(object : OfflineRegion.OfflineRegionStatusCallback {
                 override fun onStatus(status: OfflineRegionStatus?) {
                     if (status == null) {
                         onResult("Impossible de confirmer le nouvel état de la région")
                     } else if (status.downloadState == state) {
-                        Log.d(TAG, "state confirmed=$state region=$regionId")
                         onResult(null)
                     } else {
-                        Log.w(
-                            TAG,
-                            "state not confirmed expected=$state actual=${status.downloadState} " +
-                                "region=$regionId"
-                        )
                         onResult("MapLibre n'a pas confirmé le changement d'état")
                     }
                 }
@@ -153,7 +141,6 @@ class MapLibreOfflineDownloader(
     ) {
         offlineManager.listOfflineRegions(object : OfflineManager.ListOfflineRegionsCallback {
             override fun onList(offlineRegions: Array<OfflineRegion>?) {
-                Log.d(TAG, "regions listed count=${offlineRegions?.size ?: 0}, requested=$regionId")
                 callback(offlineRegions?.firstOrNull { it.id == regionId }, null)
             }
 
@@ -190,12 +177,6 @@ class MapLibreOfflineDownloader(
     ): OfflineRegion.OfflineRegionObserver =
         object : OfflineRegion.OfflineRegionObserver {
             override fun onStatusChanged(status: OfflineRegionStatus) {
-                Log.d(
-                    TAG,
-                    "status region=$regionId active=${status.downloadState == OfflineRegion.STATE_ACTIVE} " +
-                        "tiles=${status.completedTileCount} resources=${status.completedResourceCount}/" +
-                        "${status.requiredResourceCount} complete=${status.isComplete}"
-                )
                 observer.onProgress(status.toProgress(regionId))
                 if (status.isComplete) {
                     status.downloadState.takeIf { it == OfflineRegion.STATE_ACTIVE }?.let {

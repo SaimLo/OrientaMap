@@ -6,6 +6,7 @@ import com.showroomprive.orientamap.domain.model.GeoBounds
 interface MapController {
     fun moveCameraTo(location: Location)
     fun updateUserLocation(location: Location)
+    fun currentZoom(): Double? = null
 
     /**
      * Provides screen-to-geographic projection when the backing map supports it.
