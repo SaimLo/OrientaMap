@@ -16,6 +16,7 @@ class MapViewModel : ViewModel() {
     var selectedGeoBounds by mutableStateOf<GeoBounds?>(null)
         private set
     var centeredOnLocation by mutableStateOf(false)
+    var centeredOnProjectBounds by mutableStateOf(false)
 
     fun updateLocation(newLocation: Location?) {
         location = newLocation

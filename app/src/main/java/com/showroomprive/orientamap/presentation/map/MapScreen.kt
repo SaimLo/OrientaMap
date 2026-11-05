@@ -62,9 +62,12 @@ import com.showroomprive.orientamap.domain.model.GeoBounds
 import com.showroomprive.orientamap.domain.model.ProjectStatus
 import com.showroomprive.orientamap.domain.model.displayLabel
 import org.maplibre.android.camera.CameraPosition
+import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng
+import org.maplibre.android.geometry.LatLngBounds
 import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.style.layers.CircleLayer
+import org.maplibre.android.style.layers.LineLayer
 import org.maplibre.android.style.layers.PropertyFactory
 import org.maplibre.android.style.sources.GeoJsonSource
 import java.util.Locale
@@ -82,6 +85,41 @@ class MapLibreMapController(private val map: MapLibreMap) : MapController {
 
     override fun screenCoordinateProjector(): ScreenCoordinateProjector =
         MapLibreScreenCoordinateProjector(map)
+
+    override fun moveCameraToBounds(bounds: GeoBounds) {
+        map.animateCamera(
+            CameraUpdateFactory.newLatLngBounds(
+                LatLngBounds.from(
+                    bounds.north,
+                    bounds.east,
+                    bounds.south,
+                    bounds.west
+                ),
+                64
+            )
+        )
+    }
+
+    override fun showSelectedArea(bounds: GeoBounds) {
+        map.getStyle { style ->
+            val geoJson = bounds.toPolygonGeoJson()
+            val source = style.getSourceAs<GeoJsonSource>(SELECTED_AREA_SOURCE_ID)
+            if (source == null) {
+                style.addSource(GeoJsonSource(SELECTED_AREA_SOURCE_ID, geoJson))
+                style.addLayer(
+                    LineLayer(SELECTED_AREA_LAYER_ID, SELECTED_AREA_SOURCE_ID).apply {
+                        setProperties(
+                            PropertyFactory.lineColor(android.graphics.Color.rgb(30, 136, 229)),
+                            PropertyFactory.lineWidth(3f),
+                            PropertyFactory.lineOpacity(0.9f)
+                        )
+                    }
+                )
+            } else {
+                source.setGeoJson(geoJson)
+            }
+        }
+    }
 }
 
 @Composable
@@ -109,7 +147,8 @@ fun MapScreen(
     },
     viewModel: MapViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
     onSelectionValidated: (GeoBounds) -> Unit = {},
-    projectStatus: ProjectStatus = ProjectStatus.BROUILLON
+    projectStatus: ProjectStatus = ProjectStatus.BROUILLON,
+    projectBounds: GeoBounds? = null
 ) {
     val context = LocalContext.current
     val activeLocationProvider = remember(locationProvider, context) {
@@ -155,15 +194,25 @@ fun MapScreen(
         }
     }
 
-    LaunchedEffect(viewModel.location, activeController) {
+    LaunchedEffect(viewModel.location, activeController, projectBounds) {
         val currentLocation = viewModel.location
         val ctrl = activeController
         if (currentLocation != null && ctrl != null) {
             ctrl.updateUserLocation(currentLocation)
-            if (!viewModel.centeredOnLocation) {
+            if (projectBounds == null && !viewModel.centeredOnLocation) {
                 ctrl.moveCameraTo(currentLocation)
                 viewModel.centeredOnLocation = true
             }
+        }
+    }
+
+    LaunchedEffect(activeController, projectBounds) {
+        val bounds = projectBounds ?: return@LaunchedEffect
+        val ctrl = activeController ?: return@LaunchedEffect
+        ctrl.showSelectedArea(bounds)
+        if (!viewModel.centeredOnProjectBounds) {
+            ctrl.moveCameraToBounds(bounds)
+            viewModel.centeredOnProjectBounds = true
         }
     }
 
@@ -294,6 +343,7 @@ fun MapScreen(
                 projector = screenCoordinateProjector,
                 onSelectionValidated = { bounds ->
                     viewModel.isSelectionModeActive = false
+                    activeController?.showSelectedArea(bounds)
                     onSelectionValidated(bounds)
                 },
                 onCancel = { viewModel.isSelectionModeActive = false },
@@ -586,6 +636,12 @@ private fun MapLibreMap.animateCameraToLocation(location: Location) {
         )
     )
 }
+
+const val SELECTED_AREA_SOURCE_ID = "selected-area-source"
+const val SELECTED_AREA_LAYER_ID = "selected-area-layer"
+
+private fun GeoBounds.toPolygonGeoJson(): String =
+    """{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[$west,$south],[$east,$south],[$east,$north],[$west,$north],[$west,$south]]]}}"""
 
 const val LOCATION_SOURCE_ID = "device-location-source"
 const val LOCATION_LAYER_ID = "device-location-layer"

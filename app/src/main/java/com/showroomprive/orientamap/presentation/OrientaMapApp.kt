@@ -42,6 +42,7 @@ fun OrientaMapApp(viewModel: ProjectsViewModel) {
                     projectTitle = project?.name ?: "Projet ${projectId ?: "inconnu"}",
                     onBack = { navController.popBackStack() },
                     projectStatus = project?.status ?: ProjectStatus.BROUILLON,
+                    projectBounds = project?.geoBounds,
                     onSelectionValidated = { bounds ->
                         project?.id?.let { viewModel.defineProjectArea(it, bounds) }
                     }

@@ -1,6 +1,7 @@
 package com.showroomprive.orientamap.presentation.map
 
 import android.location.Location
+import com.showroomprive.orientamap.domain.model.GeoBounds
 
 interface MapController {
     fun moveCameraTo(location: Location)
@@ -11,4 +12,6 @@ interface MapController {
      * Test doubles may keep the default null implementation.
      */
     fun screenCoordinateProjector(): ScreenCoordinateProjector? = null
+    fun moveCameraToBounds(bounds: GeoBounds) = Unit
+    fun showSelectedArea(bounds: GeoBounds) = Unit
 }
