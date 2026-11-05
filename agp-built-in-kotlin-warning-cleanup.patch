@@ -1,0 +1,36 @@
+diff -ruN a/app/build.gradle.kts b/app/build.gradle.kts
+--- a/app/build.gradle.kts	2026-11-05 10:32:29.422306172 +0000
++++ b/app/build.gradle.kts	2026-11-05 10:32:29.514307518 +0000
+@@ -1,6 +1,5 @@
+ plugins {
+     id("com.android.application")
+-    id("org.jetbrains.kotlin.android")
+     id("org.jetbrains.kotlin.plugin.compose")
+     id("com.google.devtools.ksp")
+ }
+--- a/build.gradle.kts	2026-11-05 10:32:29.418306114 +0000
++++ b/build.gradle.kts	2026-11-05 10:32:29.514307518 +0000
+@@ -1,6 +1,5 @@
+ plugins {
+     id("com.android.application") version "9.5.0" apply false
+-    id("org.jetbrains.kotlin.android") version "2.2.10" apply false
+     id("org.jetbrains.kotlin.plugin.compose") version "2.2.10" apply false
+     id("com.google.devtools.ksp") version "2.3.6" apply false
+ }
+--- a/gradle.properties	2026-11-05 10:32:29.418306114 +0000
++++ b/gradle.properties	2026-11-05 10:32:29.514307518 +0000
+@@ -2,13 +2,7 @@
+ android.useAndroidX=true
+ kotlin.code.style=official
+ android.nonTransitiveRClass=true
+-android.defaults.buildfeatures.resvalues=true
+-android.sdk.defaultTargetSdkToCompileSdkIfUnset=false
+-android.enableAppCompileTimeRClass=false
+-android.usesSdkInManifest.disallowed=false
+ android.uniquePackageNames=false
+ android.dependency.useConstraints=true
+ android.r8.strictFullModeForKeepRules=false
+-android.r8.optimizedResourceShrinking=false
+-android.builtInKotlin=false
+-android.newDsl=false
++android.dependency.excludeLibraryComponentsFromConstraints=true

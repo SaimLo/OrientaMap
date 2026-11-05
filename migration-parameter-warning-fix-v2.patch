@@ -1,0 +1,52 @@
+diff -ruN a/app/src/main/java/com/showroomprive/orientamap/data/AppContainer.kt b/app/src/main/java/com/showroomprive/orientamap/data/AppContainer.kt
+--- a/app/src/main/java/com/showroomprive/orientamap/data/AppContainer.kt	2026-11-05 10:26:02.280643076 +0000
++++ b/app/src/main/java/com/showroomprive/orientamap/data/AppContainer.kt	2026-11-05 10:26:02.392644714 +0000
+@@ -19,20 +19,20 @@
+ 
+     companion object {
+         val MIGRATION_1_2 = object : Migration(1, 2) {
+-            override fun migrate(database: SupportSQLiteDatabase) {
+-                database.execSQL("ALTER TABLE map_projects ADD COLUMN boundsNorth REAL")
+-                database.execSQL("ALTER TABLE map_projects ADD COLUMN boundsSouth REAL")
+-                database.execSQL("ALTER TABLE map_projects ADD COLUMN boundsEast REAL")
+-                database.execSQL("ALTER TABLE map_projects ADD COLUMN boundsWest REAL")
++            override fun migrate(db: SupportSQLiteDatabase) {
++                db.execSQL("ALTER TABLE map_projects ADD COLUMN boundsNorth REAL")
++                db.execSQL("ALTER TABLE map_projects ADD COLUMN boundsSouth REAL")
++                db.execSQL("ALTER TABLE map_projects ADD COLUMN boundsEast REAL")
++                db.execSQL("ALTER TABLE map_projects ADD COLUMN boundsWest REAL")
+             }
+         }
+ 
+         val MIGRATION_2_3 = object : Migration(2, 3) {
+-            override fun migrate(database: SupportSQLiteDatabase) {
+-                database.execSQL(
++            override fun migrate(db: SupportSQLiteDatabase) {
++                db.execSQL(
+                     "ALTER TABLE map_projects ADD COLUMN status TEXT NOT NULL DEFAULT 'BROUILLON'"
+                 )
+-                database.execSQL("""
++                db.execSQL("""
+                     UPDATE map_projects
+                     SET status = 'ZONE_DEFINIE'
+                     WHERE boundsNorth IS NOT NULL
+@@ -44,8 +44,8 @@
+         }
+ 
+         val MIGRATION_3_4 = object : Migration(3, 4) {
+-            override fun migrate(database: SupportSQLiteDatabase) {
+-                database.execSQL("""
++            override fun migrate(db: SupportSQLiteDatabase) {
++                db.execSQL("""
+                     CREATE TABLE IF NOT EXISTS offline_packages (
+                         id TEXT NOT NULL PRIMARY KEY,
+                         projectId TEXT NOT NULL,
+@@ -68,7 +68,7 @@
+                         FOREIGN KEY(projectId) REFERENCES map_projects(id) ON DELETE CASCADE
+                     )
+                 """.trimIndent())
+-                database.execSQL(
++                db.execSQL(
+                     "CREATE INDEX IF NOT EXISTS index_offline_packages_projectId " +
+                         "ON offline_packages(projectId)"
+                 )
