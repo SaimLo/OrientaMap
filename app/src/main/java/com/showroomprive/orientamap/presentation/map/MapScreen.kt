@@ -58,6 +58,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.showroomprive.orientamap.data.location.LocationTracker
+import com.showroomprive.orientamap.domain.model.GeoBounds
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.maps.MapLibreMap
@@ -76,6 +77,9 @@ class MapLibreMapController(private val map: MapLibreMap) : MapController {
         map.ensureLocationMarker()
         map.updateLocationMarker(location)
     }
+
+    override fun screenCoordinateProjector(): ScreenCoordinateProjector =
+        MapLibreScreenCoordinateProjector(map)
 }
 
 @Composable
@@ -101,7 +105,8 @@ fun MapScreen(
             },
         )
     },
-    viewModel: MapViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+    viewModel: MapViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
+    onSelectionValidated: (GeoBounds) -> Unit = {}
 ) {
     val context = LocalContext.current
     val activeLocationProvider = remember(locationProvider, context) {
@@ -138,6 +143,7 @@ fun MapScreen(
     }
 
     val activeController = mapController ?: internalMapController
+    val screenCoordinateProjector = activeController?.screenCoordinateProjector()
 
     LaunchedEffect(viewModel.location, activeController) {
         val currentLocation = viewModel.location
@@ -269,6 +275,8 @@ fun MapScreen(
                 containerWidth = widthPx,
                 containerHeight = heightPx,
                 viewModel = viewModel,
+                projector = screenCoordinateProjector,
+                onSelectionValidated = onSelectionValidated,
                 onCancel = { viewModel.isSelectionModeActive = false },
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
@@ -353,6 +361,8 @@ private fun SelectionActionBar(
     containerWidth: Float,
     containerHeight: Float,
     viewModel: MapViewModel,
+    projector: ScreenCoordinateProjector?,
+    onSelectionValidated: (GeoBounds) -> Unit,
     onCancel: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -389,6 +399,13 @@ private fun SelectionActionBar(
 
             Button(
                 onClick = {
+                    val selectedRect = viewModel.selectionRect
+                    if (selectedRect != null && projector != null) {
+                        val bounds = selectedRect.toGeoBounds(projector)
+                        viewModel.updateSelectedGeoBounds(bounds)
+                        onSelectionValidated(bounds)
+                    }
+
                     val marginX = 24f
                     val marginTop = 160f
                     val marginBottom = 190f

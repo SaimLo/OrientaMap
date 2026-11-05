@@ -16,19 +16,24 @@ fun interface ScreenCoordinateProjector {
 
 /**
  * Converts a screen rectangle into a geographic bounding box.
- * The top-left screen point is north-west and the bottom-right point is south-east.
+ * All four corners are projected because the map projection can vary across
+ * the rectangle, especially when the map is rotated or tilted.
  */
 fun Rect.toGeoBounds(projector: ScreenCoordinateProjector): GeoBounds {
     require(width > 0f) { "The screen rectangle must have a positive width" }
     require(height > 0f) { "The screen rectangle must have a positive height" }
 
-    val northWest = projector.project(Offset(left, top))
-    val southEast = projector.project(Offset(right, bottom))
+    val corners = listOf(
+        Offset(left, top),
+        Offset(right, top),
+        Offset(left, bottom),
+        Offset(right, bottom)
+    ).map(projector::project)
 
     return GeoBounds(
-        north = maxOf(northWest.latitude, southEast.latitude),
-        south = minOf(northWest.latitude, southEast.latitude),
-        east = maxOf(northWest.longitude, southEast.longitude),
-        west = minOf(northWest.longitude, southEast.longitude)
+        north = corners.maxOf { it.latitude },
+        south = corners.minOf { it.latitude },
+        east = corners.maxOf { it.longitude },
+        west = corners.minOf { it.longitude }
     )
 }
