@@ -24,6 +24,7 @@ import java.util.UUID
 data class OfflinePackageEntity(
     @PrimaryKey val id: String,
     val projectId: String,
+    val mapLibreRegionId: Long? = null,
     val name: String,
     val boundsNorth: Double,
     val boundsSouth: Double,
@@ -36,14 +37,17 @@ data class OfflinePackageEntity(
     val status: String,
     val downloadedTiles: Long,
     val totalTiles: Long,
+    val downloadedBytes: Long = 0L,
     val estimatedSizeBytes: Long?,
     val localPath: String?,
+    val lastError: String? = null,
     val createdAtEpochMillis: Long,
     val completedAtEpochMillis: Long?
 ) {
     fun toDomain(): OfflinePackage = OfflinePackage(
         id = UUID.fromString(id),
         projectId = UUID.fromString(projectId),
+        mapLibreRegionId = mapLibreRegionId,
         name = name,
         bounds = GeoBounds(
             north = boundsNorth,
@@ -58,8 +62,10 @@ data class OfflinePackageEntity(
         status = status.toOfflinePackageStatus(),
         downloadedTiles = downloadedTiles,
         totalTiles = totalTiles,
+        downloadedBytes = downloadedBytes,
         estimatedSizeBytes = estimatedSizeBytes,
         localPath = localPath,
+        lastError = lastError,
         createdAtEpochMillis = createdAtEpochMillis,
         completedAtEpochMillis = completedAtEpochMillis
     )
@@ -68,6 +74,7 @@ data class OfflinePackageEntity(
 fun OfflinePackage.toEntity(): OfflinePackageEntity = OfflinePackageEntity(
     id = id.toString(),
     projectId = projectId.toString(),
+    mapLibreRegionId = mapLibreRegionId,
     name = name,
     boundsNorth = bounds.north,
     boundsSouth = bounds.south,
@@ -80,8 +87,10 @@ fun OfflinePackage.toEntity(): OfflinePackageEntity = OfflinePackageEntity(
     status = status.name,
     downloadedTiles = downloadedTiles,
     totalTiles = totalTiles,
+    downloadedBytes = downloadedBytes,
     estimatedSizeBytes = estimatedSizeBytes,
     localPath = localPath,
+    lastError = lastError,
     createdAtEpochMillis = createdAtEpochMillis,
     completedAtEpochMillis = completedAtEpochMillis
 )

@@ -111,8 +111,10 @@ fun MapProject.createOfflinePackage(
         status = OfflinePackageStatus.CREE,
         downloadedTiles = 0L,
         totalTiles = estimate.totalTiles,
+        downloadedBytes = 0L,
         estimatedSizeBytes = estimate.estimatedSizeBytes,
         localPath = null,
+        lastError = null,
         createdAtEpochMillis = nowEpochMillis,
         completedAtEpochMillis = null
     )

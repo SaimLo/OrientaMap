@@ -7,6 +7,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import com.showroomprive.orientamap.data.local.OrientaMapDatabase
 import com.showroomprive.orientamap.data.repository.RoomMapProjectRepository
 import com.showroomprive.orientamap.data.repository.RoomOfflinePackageRepository
+import com.showroomprive.orientamap.data.maplibre.MapLibreOfflineDownloader
 
 class AppContainer(context: Context) {
     private val database = Room.databaseBuilder(
@@ -14,7 +15,7 @@ class AppContainer(context: Context) {
         OrientaMapDatabase::class.java,
         "orientamap.db"
     )
-        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
         .build()
 
     companion object {
@@ -74,6 +75,16 @@ class AppContainer(context: Context) {
                 )
             }
         }
+
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE offline_packages ADD COLUMN mapLibreRegionId INTEGER")
+                db.execSQL(
+                    "ALTER TABLE offline_packages ADD COLUMN downloadedBytes INTEGER NOT NULL DEFAULT 0"
+                )
+                db.execSQL("ALTER TABLE offline_packages ADD COLUMN lastError TEXT")
+            }
+        }
     }
 
     val mapProjectRepository = RoomMapProjectRepository(database.mapProjectDao())
@@ -81,4 +92,5 @@ class AppContainer(context: Context) {
         projectDao = database.mapProjectDao(),
         packageDao = database.offlinePackageDao()
     )
+    val offlineDownloader = MapLibreOfflineDownloader(context)
 }
