@@ -3,12 +3,14 @@ package com.showroomprive.orientamap.presentation
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.showroomprive.orientamap.domain.model.GeoBounds
 import com.showroomprive.orientamap.domain.model.MapProject
 import com.showroomprive.orientamap.domain.repository.MapProjectRepository
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.util.UUID
 
 class ProjectsViewModel(
     private val repository: MapProjectRepository
@@ -35,6 +37,12 @@ class ProjectsViewModel(
         if (trimmed.isEmpty()) return
         viewModelScope.launch {
             repository.renameProject(project.id, trimmed)
+        }
+    }
+
+    fun updateProjectBounds(projectId: UUID, bounds: GeoBounds?) {
+        viewModelScope.launch {
+            repository.updateProjectBounds(projectId, bounds)
         }
     }
 

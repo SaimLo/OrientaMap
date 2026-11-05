@@ -20,6 +20,24 @@ interface MapProjectDao {
     @Query("UPDATE map_projects SET name = :newName, updatedAtEpochMillis = :updatedAt WHERE id = :id")
     suspend fun updateProjectName(id: String, newName: String, updatedAt: Long)
 
+    @Query("""
+        UPDATE map_projects
+        SET boundsNorth = :north,
+            boundsSouth = :south,
+            boundsEast = :east,
+            boundsWest = :west,
+            updatedAtEpochMillis = :updatedAt
+        WHERE id = :id
+    """)
+    suspend fun updateProjectBounds(
+        id: String,
+        north: Double?,
+        south: Double?,
+        east: Double?,
+        west: Double?,
+        updatedAt: Long
+    )
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(entity: MapProjectEntity)
 

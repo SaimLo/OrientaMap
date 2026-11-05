@@ -39,7 +39,10 @@ fun OrientaMapApp(viewModel: ProjectsViewModel) {
                 val project = projects.find { it.id.toString() == projectId }
                 MapScreen(
                     projectTitle = project?.name ?: "Projet ${projectId ?: "inconnu"}",
-                    onBack = { navController.popBackStack() }
+                    onBack = { navController.popBackStack() },
+                    onSelectionValidated = { bounds ->
+                        project?.id?.let { viewModel.updateProjectBounds(it, bounds) }
+                    }
                 )
             }
         }

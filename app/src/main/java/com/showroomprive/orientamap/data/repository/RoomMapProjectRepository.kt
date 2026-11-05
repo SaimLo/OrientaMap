@@ -3,6 +3,7 @@ package com.showroomprive.orientamap.data.repository
 import com.showroomprive.orientamap.data.local.MapProjectDao
 import com.showroomprive.orientamap.data.local.MapProjectEntity
 import com.showroomprive.orientamap.data.local.observeProjects
+import com.showroomprive.orientamap.domain.model.GeoBounds
 import com.showroomprive.orientamap.domain.model.MapProject
 import com.showroomprive.orientamap.domain.repository.MapProjectRepository
 import kotlinx.coroutines.flow.Flow
@@ -35,6 +36,17 @@ class RoomMapProjectRepository(
         dao.updateProjectName(
             id = id.toString(),
             newName = newName,
+            updatedAt = System.currentTimeMillis()
+        )
+    }
+
+    override suspend fun updateProjectBounds(id: UUID, bounds: GeoBounds?) {
+        dao.updateProjectBounds(
+            id = id.toString(),
+            north = bounds?.north,
+            south = bounds?.south,
+            east = bounds?.east,
+            west = bounds?.west,
             updatedAt = System.currentTimeMillis()
         )
     }

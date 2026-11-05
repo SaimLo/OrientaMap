@@ -7,5 +7,6 @@ data class MapProject(
     val name: String,
     val description: String?,
     val createdAtEpochMillis: Long,
-    val updatedAtEpochMillis: Long
+    val updatedAtEpochMillis: Long,
+    val geoBounds: GeoBounds? = null
 )
