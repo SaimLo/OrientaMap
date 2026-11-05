@@ -237,7 +237,7 @@ fun MapScreen(
                         modifier = Modifier.testTag("project_status")
                     )
                     Text(
-                        text = "Mode hors ligne : Prêt",
+                        text = "Hors ligne non configuré",
                         style = MaterialTheme.typography.bodySmall,
                         modifier = Modifier.testTag("offline_mode_indicator")
                     )
