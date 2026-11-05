@@ -9,6 +9,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.showroomprive.orientamap.domain.model.ProjectStatus
 import com.showroomprive.orientamap.presentation.map.MapScreen
 import com.showroomprive.orientamap.presentation.projects.ProjectListScreen
 
@@ -40,8 +41,9 @@ fun OrientaMapApp(viewModel: ProjectsViewModel) {
                 MapScreen(
                     projectTitle = project?.name ?: "Projet ${projectId ?: "inconnu"}",
                     onBack = { navController.popBackStack() },
+                    projectStatus = project?.status ?: ProjectStatus.BROUILLON,
                     onSelectionValidated = { bounds ->
-                        project?.id?.let { viewModel.updateProjectBounds(it, bounds) }
+                        project?.id?.let { viewModel.defineProjectArea(it, bounds) }
                     }
                 )
             }

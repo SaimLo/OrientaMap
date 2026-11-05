@@ -26,17 +26,25 @@ interface MapProjectDao {
             boundsSouth = :south,
             boundsEast = :east,
             boundsWest = :west,
+            status = :definedStatus,
             updatedAtEpochMillis = :updatedAt
         WHERE id = :id
+          AND status = :draftStatus
+          AND boundsNorth IS NULL
+          AND boundsSouth IS NULL
+          AND boundsEast IS NULL
+          AND boundsWest IS NULL
     """)
-    suspend fun updateProjectBounds(
+    suspend fun defineProjectArea(
         id: String,
-        north: Double?,
-        south: Double?,
-        east: Double?,
-        west: Double?,
+        north: Double,
+        south: Double,
+        east: Double,
+        west: Double,
+        draftStatus: String,
+        definedStatus: String,
         updatedAt: Long
-    )
+    ): Int
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(entity: MapProjectEntity)

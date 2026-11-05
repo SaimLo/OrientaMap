@@ -40,9 +40,9 @@ class ProjectsViewModel(
         }
     }
 
-    fun updateProjectBounds(projectId: UUID, bounds: GeoBounds?) {
+    fun defineProjectArea(projectId: UUID, bounds: GeoBounds) {
         viewModelScope.launch {
-            repository.updateProjectBounds(projectId, bounds)
+            repository.defineProjectArea(projectId, bounds)
         }
     }
 

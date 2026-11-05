@@ -1,6 +1,7 @@
 package com.showroomprive.orientamap.data.local
 
 import com.showroomprive.orientamap.domain.model.GeoBounds
+import com.showroomprive.orientamap.domain.model.ProjectStatus
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -16,6 +17,7 @@ class MapProjectEntityTest {
             description = null,
             createdAtEpochMillis = 1L,
             updatedAtEpochMillis = 2L,
+            status = ProjectStatus.ZONE_DEFINIE.name,
             boundsNorth = 48.9,
             boundsSouth = 48.7,
             boundsEast = 2.5,
@@ -26,6 +28,7 @@ class MapProjectEntityTest {
             GeoBounds(north = 48.9, south = 48.7, east = 2.5, west = 2.1),
             project.geoBounds
         )
+        assertEquals(ProjectStatus.ZONE_DEFINIE, project.status)
     }
 
     @Test

@@ -10,6 +10,6 @@ interface MapProjectRepository {
     suspend fun getProject(id: UUID): MapProject?
     suspend fun createProject(name: String, description: String?): UUID
     suspend fun renameProject(id: UUID, newName: String)
-    suspend fun updateProjectBounds(id: UUID, bounds: GeoBounds?)
+    suspend fun defineProjectArea(id: UUID, bounds: GeoBounds): Boolean
     suspend fun deleteProject(project: MapProject)
 }

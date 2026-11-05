@@ -8,5 +8,6 @@ data class MapProject(
     val description: String?,
     val createdAtEpochMillis: Long,
     val updatedAtEpochMillis: Long,
-    val geoBounds: GeoBounds? = null
+    val geoBounds: GeoBounds? = null,
+    val status: ProjectStatus = ProjectStatus.BROUILLON
 )

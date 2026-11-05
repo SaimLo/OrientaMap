@@ -59,6 +59,8 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.showroomprive.orientamap.data.location.LocationTracker
 import com.showroomprive.orientamap.domain.model.GeoBounds
+import com.showroomprive.orientamap.domain.model.ProjectStatus
+import com.showroomprive.orientamap.domain.model.displayLabel
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.maps.MapLibreMap
@@ -106,7 +108,8 @@ fun MapScreen(
         )
     },
     viewModel: MapViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
-    onSelectionValidated: (GeoBounds) -> Unit = {}
+    onSelectionValidated: (GeoBounds) -> Unit = {},
+    projectStatus: ProjectStatus = ProjectStatus.BROUILLON
 ) {
     val context = LocalContext.current
     val activeLocationProvider = remember(locationProvider, context) {
@@ -144,6 +147,13 @@ fun MapScreen(
 
     val activeController = mapController ?: internalMapController
     val screenCoordinateProjector = activeController?.screenCoordinateProjector()
+    val areaLocked = projectStatus != ProjectStatus.BROUILLON || viewModel.selectedGeoBounds != null
+
+    LaunchedEffect(areaLocked) {
+        if (areaLocked) {
+            viewModel.isSelectionModeActive = false
+        }
+    }
 
     LaunchedEffect(viewModel.location, activeController) {
         val currentLocation = viewModel.location
@@ -222,18 +232,24 @@ fun MapScreen(
 
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
+                        text = projectStatus.displayLabel(),
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.testTag("project_status")
+                    )
+                    Text(
                         text = "Mode hors ligne : Prêt",
                         style = MaterialTheme.typography.bodySmall,
                         modifier = Modifier.testTag("offline_mode_indicator")
                     )
 
-                    if (!viewModel.isSelectionModeActive) {
+                    if (!viewModel.isSelectionModeActive && !areaLocked) {
                         Spacer(modifier = Modifier.height(8.dp))
                         // Blue circular button with dashed white square icon
                         IconButton(
                             onClick = { viewModel.isSelectionModeActive = true },
                             modifier = Modifier
                                 .size(44.dp)
+                                .testTag("define_area_button")
                                 .background(Color(0xFF1E88E5), CircleShape)
                         ) {
                             Canvas(modifier = Modifier.size(20.dp)) {
@@ -276,7 +292,10 @@ fun MapScreen(
                 containerHeight = heightPx,
                 viewModel = viewModel,
                 projector = screenCoordinateProjector,
-                onSelectionValidated = onSelectionValidated,
+                onSelectionValidated = { bounds ->
+                    viewModel.isSelectionModeActive = false
+                    onSelectionValidated(bounds)
+                },
                 onCancel = { viewModel.isSelectionModeActive = false },
                 modifier = Modifier
                     .align(Alignment.BottomCenter)

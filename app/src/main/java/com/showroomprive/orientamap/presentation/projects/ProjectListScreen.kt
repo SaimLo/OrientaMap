@@ -24,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.showroomprive.orientamap.domain.model.MapProject
+import com.showroomprive.orientamap.domain.model.displayLabel
 
 @Composable
 fun ProjectListScreen(
@@ -70,6 +71,11 @@ fun ProjectListScreen(
                     ) {
                         Column(modifier = Modifier.padding(12.dp)) {
                             Text(project.name, style = MaterialTheme.typography.titleMedium)
+                            Text(
+                                text = project.status.displayLabel(),
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.testTag("project_status_${project.id}")
+                            )
                             project.description?.let { Text(it) }
                             Row(modifier = Modifier.fillMaxWidth()) {
                                 TextButton(

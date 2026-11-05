@@ -5,6 +5,8 @@ import com.showroomprive.orientamap.data.local.MapProjectEntity
 import com.showroomprive.orientamap.data.local.observeProjects
 import com.showroomprive.orientamap.domain.model.GeoBounds
 import com.showroomprive.orientamap.domain.model.MapProject
+import com.showroomprive.orientamap.domain.model.ProjectStatus
+import com.showroomprive.orientamap.domain.model.canDefineArea
 import com.showroomprive.orientamap.domain.repository.MapProjectRepository
 import kotlinx.coroutines.flow.Flow
 import java.util.UUID
@@ -40,15 +42,20 @@ class RoomMapProjectRepository(
         )
     }
 
-    override suspend fun updateProjectBounds(id: UUID, bounds: GeoBounds?) {
-        dao.updateProjectBounds(
+    override suspend fun defineProjectArea(id: UUID, bounds: GeoBounds): Boolean {
+        val currentProject = dao.getProjectById(id.toString())?.toDomain() ?: return false
+        if (!currentProject.canDefineArea()) return false
+
+        return dao.defineProjectArea(
             id = id.toString(),
-            north = bounds?.north,
-            south = bounds?.south,
-            east = bounds?.east,
-            west = bounds?.west,
+            north = bounds.north,
+            south = bounds.south,
+            east = bounds.east,
+            west = bounds.west,
+            draftStatus = ProjectStatus.BROUILLON.name,
+            definedStatus = ProjectStatus.ZONE_DEFINIE.name,
             updatedAt = System.currentTimeMillis()
-        )
+        ) == 1
     }
 
     override suspend fun deleteProject(project: MapProject) {
