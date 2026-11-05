@@ -4,10 +4,14 @@ import android.content.Context
 import androidx.room.Room
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import com.showroomprive.orientamap.data.local.OrientaMapDatabase
 import com.showroomprive.orientamap.data.repository.RoomMapProjectRepository
 import com.showroomprive.orientamap.data.repository.RoomOfflinePackageRepository
 import com.showroomprive.orientamap.data.maplibre.MapLibreOfflineDownloader
+import com.showroomprive.orientamap.data.offline.OfflinePackageDownloadCoordinator
 
 class AppContainer(context: Context) {
     private val database = Room.databaseBuilder(
@@ -93,4 +97,10 @@ class AppContainer(context: Context) {
         packageDao = database.offlinePackageDao()
     )
     val offlineDownloader = MapLibreOfflineDownloader(context)
+    private val offlineDownloadScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    val offlineDownloadCoordinator = OfflinePackageDownloadCoordinator(
+        downloader = offlineDownloader,
+        repository = offlinePackageRepository,
+        scope = offlineDownloadScope
+    )
 }

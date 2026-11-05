@@ -12,7 +12,7 @@ interface OfflineDownloadObserver {
 
 data class OfflineDownloadProgress(
     val regionId: Long,
-    val downloadState: Int,
+    val isActive: Boolean,
     val completedTileCount: Long,
     val requiredResourceCount: Long,
     val completedTileSizeBytes: Long,

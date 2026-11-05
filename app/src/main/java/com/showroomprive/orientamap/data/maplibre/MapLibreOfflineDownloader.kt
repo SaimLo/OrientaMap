@@ -168,7 +168,7 @@ class MapLibreOfflineDownloader(
 
     private fun OfflineRegionStatus.toProgress(regionId: Long) = OfflineDownloadProgress(
         regionId = regionId,
-        downloadState = downloadState,
+        isActive = downloadState == OfflineRegion.STATE_ACTIVE,
         completedTileCount = completedTileCount,
         requiredResourceCount = requiredResourceCount,
         completedTileSizeBytes = completedTileSize,
