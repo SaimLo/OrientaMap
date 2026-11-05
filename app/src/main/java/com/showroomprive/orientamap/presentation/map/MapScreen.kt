@@ -31,6 +31,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -59,6 +60,8 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.showroomprive.orientamap.data.location.LocationTracker
 import com.showroomprive.orientamap.domain.model.GeoBounds
+import com.showroomprive.orientamap.domain.model.OfflinePackage
+import com.showroomprive.orientamap.domain.model.OfflinePackageStatus
 import com.showroomprive.orientamap.domain.model.ProjectStatus
 import com.showroomprive.orientamap.domain.model.displayLabel
 import org.maplibre.android.camera.CameraPosition
@@ -148,7 +151,12 @@ fun MapScreen(
     viewModel: MapViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
     onSelectionValidated: (GeoBounds) -> Unit = {},
     projectStatus: ProjectStatus = ProjectStatus.BROUILLON,
-    projectBounds: GeoBounds? = null
+    projectBounds: GeoBounds? = null,
+    offlinePackages: List<OfflinePackage> = emptyList(),
+    onStartOfflineDownload: () -> Unit = {},
+    onPauseOfflineDownload: (OfflinePackage) -> Unit = {},
+    onResumeOfflineDownload: (OfflinePackage) -> Unit = {},
+    onCancelOfflineDownload: (OfflinePackage) -> Unit = {}
 ) {
     val context = LocalContext.current
     val activeLocationProvider = remember(locationProvider, context) {
@@ -286,10 +294,28 @@ fun MapScreen(
                         modifier = Modifier.testTag("project_status")
                     )
                     Text(
-                        text = "Hors ligne non configuré",
+                        text = if (offlinePackages.any { it.status == OfflinePackageStatus.TERMINE }) {
+                            "Disponible hors connexion"
+                        } else {
+                            "Hors ligne non configuré"
+                        },
                         style = MaterialTheme.typography.bodySmall,
                         modifier = Modifier.testTag("offline_mode_indicator")
                     )
+
+                    if (
+                        projectBounds != null &&
+                            projectStatus != ProjectStatus.BROUILLON &&
+                            projectStatus != ProjectStatus.ARCHIVE
+                    ) {
+                        OfflinePackageCard(
+                            offlinePackage = offlinePackages.firstOrNull(),
+                            onStart = onStartOfflineDownload,
+                            onPause = onPauseOfflineDownload,
+                            onResume = onResumeOfflineDownload,
+                            onCancel = onCancelOfflineDownload
+                        )
+                    }
 
                     if (!viewModel.isSelectionModeActive && !areaLocked) {
                         Spacer(modifier = Modifier.height(8.dp))
@@ -364,6 +390,127 @@ fun MapScreen(
             )
         }
     }
+}
+
+@Composable
+private fun OfflinePackageCard(
+    offlinePackage: OfflinePackage?,
+    onStart: () -> Unit,
+    onPause: (OfflinePackage) -> Unit,
+    onResume: (OfflinePackage) -> Unit,
+    onCancel: (OfflinePackage) -> Unit
+) {
+    Spacer(modifier = Modifier.height(8.dp))
+    Text(
+        text = "Carte hors connexion",
+        style = MaterialTheme.typography.titleSmall,
+        fontWeight = FontWeight.SemiBold,
+        modifier = Modifier.testTag("download_area_title")
+    )
+
+    if (offlinePackage == null) {
+        Text(text = "Aucun paquet préparé", style = MaterialTheme.typography.bodySmall)
+        Text(
+            text = "Niveaux de zoom : 10 à 14",
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.testTag("download_zoom_selector")
+        )
+        Button(
+            onClick = onStart,
+            modifier = Modifier.fillMaxWidth().testTag("download_area_button")
+        ) { Text("Préparer la zone") }
+        return
+    }
+
+    Text(offlinePackage.name, style = MaterialTheme.typography.bodySmall)
+    Text(
+        text = offlineStatusLabel(offlinePackage.status),
+        style = MaterialTheme.typography.bodySmall,
+        modifier = Modifier.testTag("download_progress")
+    )
+    Text(
+        text = "${offlinePackage.totalTiles} tuiles estimées, zooms ${offlinePackage.minZoom}-${offlinePackage.maxZoom}",
+        style = MaterialTheme.typography.bodySmall,
+        modifier = Modifier.testTag("download_estimate")
+    )
+
+    offlinePackage.lastError?.takeIf { it.isNotBlank() }?.let { error ->
+        Text(
+            text = error,
+            color = MaterialTheme.colorScheme.error,
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.testTag("download_error")
+        )
+    }
+
+    if (offlinePackage.totalTiles > 0L) {
+        val progress = (offlinePackage.downloadedTiles.toFloat() /
+            offlinePackage.totalTiles.toFloat()).coerceIn(0f, 1f)
+        LinearProgressIndicator(
+            progress = { progress },
+            modifier = Modifier.fillMaxWidth().testTag("download_progress_bar")
+        )
+    }
+
+    when (offlinePackage.status) {
+        OfflinePackageStatus.CREE,
+        OfflinePackageStatus.ECHEC,
+        OfflinePackageStatus.ANNULE -> Button(
+            onClick = onStart,
+            modifier = Modifier.fillMaxWidth().testTag("download_confirm_button")
+        ) {
+            Text(if (offlinePackage.status == OfflinePackageStatus.ECHEC) "Réessayer" else "Télécharger")
+        }
+
+        OfflinePackageStatus.EN_ATTENTE -> Button(
+            onClick = { onCancel(offlinePackage) },
+            modifier = Modifier.fillMaxWidth().testTag("download_cancel_button")
+        ) { Text("Annuler la préparation") }
+
+        OfflinePackageStatus.TELECHARGEMENT_EN_COURS -> {
+            Button(
+                onClick = { onPause(offlinePackage) },
+                modifier = Modifier.fillMaxWidth().testTag("download_pause_button")
+            ) { Text("Pause") }
+            Button(
+                onClick = { onCancel(offlinePackage) },
+                modifier = Modifier.fillMaxWidth().testTag("download_cancel_button")
+            ) { Text("Annuler") }
+        }
+
+        OfflinePackageStatus.PAUSE -> {
+            Button(
+                onClick = { onResume(offlinePackage) },
+                modifier = Modifier.fillMaxWidth().testTag("download_retry_button")
+            ) { Text("Reprendre") }
+            Button(
+                onClick = { onCancel(offlinePackage) },
+                modifier = Modifier.fillMaxWidth().testTag("download_cancel_button")
+            ) { Text("Annuler") }
+        }
+
+        OfflinePackageStatus.TERMINE -> Text(
+            text = "Disponible hors connexion",
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.testTag("offline_package_ready")
+        )
+
+        OfflinePackageStatus.CORROMPU -> Text(
+            text = "Paquet corrompu, suppression nécessaire",
+            style = MaterialTheme.typography.bodySmall
+        )
+    }
+}
+
+private fun offlineStatusLabel(status: OfflinePackageStatus): String = when (status) {
+    OfflinePackageStatus.CREE -> "Créé"
+    OfflinePackageStatus.EN_ATTENTE -> "En attente"
+    OfflinePackageStatus.TELECHARGEMENT_EN_COURS -> "Téléchargement en cours"
+    OfflinePackageStatus.PAUSE -> "En pause"
+    OfflinePackageStatus.TERMINE -> "Terminé"
+    OfflinePackageStatus.ANNULE -> "Annulé"
+    OfflinePackageStatus.ECHEC -> "Échec"
+    OfflinePackageStatus.CORROMPU -> "Corrompu"
 }
 
 @Composable

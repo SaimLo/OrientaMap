@@ -122,7 +122,21 @@ class MapLibreOfflineDownloader(
                 return@findRegion
             }
             region.setDownloadState(state)
-            onResult(null)
+            region.getStatus(object : OfflineRegion.OfflineRegionStatusCallback {
+                override fun onStatus(status: OfflineRegionStatus?) {
+                    if (status == null) {
+                        onResult("Impossible de confirmer le nouvel état de la région")
+                    } else if (status.downloadState == state) {
+                        onResult(null)
+                    } else {
+                        onResult("MapLibre n'a pas confirmé le changement d'état")
+                    }
+                }
+
+                override fun onError(error: String?) {
+                    onResult(error ?: "Impossible de confirmer le nouvel état de la région")
+                }
+            })
         }
     }
 
@@ -170,6 +184,7 @@ class MapLibreOfflineDownloader(
         regionId = regionId,
         isActive = downloadState == OfflineRegion.STATE_ACTIVE,
         completedTileCount = completedTileCount,
+        completedResourceCount = completedResourceCount,
         requiredResourceCount = requiredResourceCount,
         completedTileSizeBytes = completedTileSize,
         completedResourceSizeBytes = completedResourceSize,

@@ -132,14 +132,21 @@ class OfflinePackageDownloadCoordinator(
         override fun onProgress(progress: OfflineDownloadProgress) {
             updatePackage(packageId) { offlinePackage ->
                 val complete = progress.isComplete
+                val completedTiles = when {
+                    progress.completedTileCount > 0L -> progress.completedTileCount
+                    else -> progress.completedResourceCount
+                }.coerceAtMost(offlinePackage.totalTiles)
                 offlinePackage.copy(
                     status = when {
                         complete -> OfflinePackageStatus.TERMINE
                         !progress.isActive -> OfflinePackageStatus.PAUSE
                         else -> OfflinePackageStatus.TELECHARGEMENT_EN_COURS
                     },
-                    downloadedTiles = progress.completedTileCount,
-                    downloadedBytes = progress.completedTileSizeBytes,
+                    downloadedTiles = completedTiles,
+                    downloadedBytes = maxOf(
+                        progress.completedTileSizeBytes,
+                        progress.completedResourceSizeBytes
+                    ),
                     lastError = null,
                     completedAtEpochMillis = if (complete) nowEpochMillis() else null
                 )

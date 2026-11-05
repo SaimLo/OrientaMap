@@ -15,6 +15,7 @@ data class OfflineDownloadProgress(
     val isActive: Boolean,
     val completedTileCount: Long,
     val requiredResourceCount: Long,
+    val completedResourceCount: Long = 0L,
     val completedTileSizeBytes: Long,
     val completedResourceSizeBytes: Long,
     val isComplete: Boolean,

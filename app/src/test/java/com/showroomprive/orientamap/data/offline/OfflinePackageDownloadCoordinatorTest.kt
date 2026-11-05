@@ -54,7 +54,7 @@ class OfflinePackageDownloadCoordinatorTest {
 
         assertEquals(OfflinePackageStatus.TERMINE, repository.value.status)
         assertEquals(12L, repository.value.downloadedTiles)
-        assertEquals(1_200L, repository.value.downloadedBytes)
+        assertEquals(1_500L, repository.value.downloadedBytes)
         assertEquals(99L, repository.value.completedAtEpochMillis)
     }
 
