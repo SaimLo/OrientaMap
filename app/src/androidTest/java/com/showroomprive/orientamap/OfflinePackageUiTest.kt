@@ -51,4 +51,28 @@ class OfflinePackageUiTest {
 
         assertTrue(clicked)
     }
+    @Test
+    fun definedProjectOffersPdfExport() {
+        var clicked = false
+        composeTestRule.setContent {
+            MapScreen(
+                projectTitle = "Projet imprimable",
+                onBack = {},
+                locationProvider = FakeLocationProvider(),
+                mapController = FakeMapController(),
+                projectStatus = ProjectStatus.ZONE_DEFINIE,
+                projectBounds = GeoBounds(48.9, 48.7, 2.5, 2.1),
+                onExportPdf = { clicked = true },
+                mapContent = { _ ->
+                    Box(modifier = Modifier.fillMaxSize())
+                }
+            )
+        }
+
+        composeTestRule.onNodeWithTag("export_pdf_button")
+            .assertIsDisplayed()
+            .performClick()
+
+        assertTrue(clicked)
+    }
 }

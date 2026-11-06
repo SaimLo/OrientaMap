@@ -161,7 +161,8 @@ fun MapScreen(
     onStartOfflineDownload: () -> Unit = {},
     onPauseOfflineDownload: (OfflinePackage) -> Unit = {},
     onResumeOfflineDownload: (OfflinePackage) -> Unit = {},
-    onCancelOfflineDownload: (OfflinePackage) -> Unit = {}
+    onCancelOfflineDownload: (OfflinePackage) -> Unit = {},
+    onExportPdf: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val activeLocationProvider = remember(locationProvider, context) {
@@ -335,6 +336,15 @@ fun MapScreen(
                             onResume = onResumeOfflineDownload,
                             onCancel = onCancelOfflineDownload
                         )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Button(
+                            onClick = onExportPdf,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("export_pdf_button")
+                        ) {
+                            Text("Exporter en PDF")
+                        }
                     }
 
                     if (!viewModel.isSelectionModeActive && !areaLocked) {
