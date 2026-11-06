@@ -8,11 +8,13 @@ import com.showroomprive.orientamap.domain.model.MapProject
 import com.showroomprive.orientamap.domain.model.ProjectStatus
 import com.showroomprive.orientamap.domain.model.canDefineArea
 import com.showroomprive.orientamap.domain.repository.MapProjectRepository
+import com.showroomprive.orientamap.domain.repository.ProjectDataCleanup
 import kotlinx.coroutines.flow.Flow
 import java.util.UUID
 
 class RoomMapProjectRepository(
-    private val dao: MapProjectDao
+    private val dao: MapProjectDao,
+    private val projectDataCleanup: ProjectDataCleanup? = null
 ) : MapProjectRepository {
     override fun observeProjects(): Flow<List<MapProject>> = dao.observeProjects()
 
@@ -68,5 +70,6 @@ class RoomMapProjectRepository(
                 updatedAtEpochMillis = project.updatedAtEpochMillis
             )
         )
+        projectDataCleanup?.deleteProjectData(project.id)
     }
 }

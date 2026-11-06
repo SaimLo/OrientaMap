@@ -53,4 +53,55 @@ class RgeAltiContourCacheStoreTest {
             directory.deleteRecursively()
         }
     }
+
+    @Test
+    fun invalidCachedPayloadIsIgnoredAndReplaced() = runBlocking {
+        val directory = Files.createTempDirectory("orientamap-contours").toFile()
+        try {
+            val store = RgeAltiContourCacheStore(directory)
+            val projectId = UUID.randomUUID()
+            val bounds = GeoBounds(48.90, 48.80, 2.40, 2.30)
+            val file = store.cacheFile(projectId, bounds)
+            file.parentFile.mkdirs()
+            file.writeText("not-a-geojson")
+            var fetchCount = 0
+            val expected = "{\"type\":\"FeatureCollection\",\"features\":[]}"
+
+            val result = store.getOrFetch(
+                projectId = projectId,
+                bounds = bounds,
+                validate = { require(it.startsWith("{\"type\":\"FeatureCollection\"")) }
+            ) {
+                fetchCount += 1
+                expected
+            }
+
+            assertEquals(expected, result)
+            assertEquals(1, fetchCount)
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun deletingProjectRemovesAllItsCachedZones() = runBlocking {
+        val directory = Files.createTempDirectory("orientamap-contours").toFile()
+        try {
+            val store = RgeAltiContourCacheStore(directory)
+            val projectId = UUID.randomUUID()
+            val firstBounds = GeoBounds(48.90, 48.80, 2.40, 2.30)
+            val secondBounds = firstBounds.copy(west = 2.20)
+            val payload = "{\"type\":\"FeatureCollection\",\"features\":[]}"
+
+            store.getOrFetch(projectId, firstBounds) { payload }
+            store.getOrFetch(projectId, secondBounds) { payload }
+            assertTrue(store.cacheDirectory(projectId).isDirectory)
+
+            store.deleteProject(projectId)
+
+            assertFalse(store.cacheDirectory(projectId).exists())
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
 }

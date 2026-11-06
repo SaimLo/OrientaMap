@@ -4,6 +4,7 @@ import android.content.Context
 import com.showroomprive.orientamap.data.importer.RgeAltiContourCacheStore
 import com.showroomprive.orientamap.data.importer.RgeAltiContourImporter
 import com.showroomprive.orientamap.data.importer.RgeAltiGeoJsonParser
+import com.showroomprive.orientamap.data.importer.RgeAltiWfsException
 import com.showroomprive.orientamap.data.importer.RgeAltiWfsClient
 import com.showroomprive.orientamap.domain.model.GeoBounds
 import com.showroomprive.orientamap.domain.model.PrintMapSpec
@@ -30,7 +31,19 @@ class PrintMapExportService(
         spec: PrintMapSpec = PrintMapSpec(),
         projectId: UUID? = null
     ) {
-        val geoJson = contourCache.getOrFetch(projectId, bounds) {
+        val geoJson = contourCache.getOrFetch(
+            projectId = projectId,
+            bounds = bounds,
+            validate = { rawGeoJson ->
+                runCatching { contourParser.parse(rawGeoJson) }
+                    .getOrElse { cause ->
+                        throw RgeAltiWfsException(
+                            "La réponse GeoJSON IGN est invalide",
+                            cause
+                        )
+                    }
+            }
+        ) {
             contourClient.fetchGeoJson(bounds)
         }
         val contours = contourImporter.import(contourParser.parse(geoJson))

@@ -8,6 +8,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import com.showroomprive.orientamap.data.local.OrientaMapDatabase
+import com.showroomprive.orientamap.data.importer.RgeAltiContourCacheStore
 import com.showroomprive.orientamap.data.repository.RoomMapProjectRepository
 import com.showroomprive.orientamap.data.repository.RoomOfflinePackageRepository
 import com.showroomprive.orientamap.data.maplibre.MapLibreOfflineDownloader
@@ -91,7 +92,11 @@ class AppContainer(context: Context) {
         }
     }
 
-    val mapProjectRepository = RoomMapProjectRepository(database.mapProjectDao())
+    val contourCacheStore = RgeAltiContourCacheStore(context)
+    val mapProjectRepository = RoomMapProjectRepository(
+        dao = database.mapProjectDao(),
+        projectDataCleanup = contourCacheStore
+    )
     val offlinePackageRepository = RoomOfflinePackageRepository(
         projectDao = database.mapProjectDao(),
         packageDao = database.offlinePackageDao()

@@ -7,6 +7,9 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
 
+class RgeAltiWfsException(message: String, cause: Throwable? = null) :
+    IllegalStateException(message, cause)
+
 class RgeAltiWfsClient(
     private val parser: RgeAltiGeoJsonParser = RgeAltiGeoJsonParser(),
     private val endpoint: String = DEFAULT_ENDPOINT
@@ -17,22 +20,33 @@ class RgeAltiWfsClient(
 
     suspend fun fetchGeoJson(bounds: GeoBounds): String =
         withContext(Dispatchers.IO) {
-            val connection = URL(buildRequestUrl(bounds)).openConnection() as HttpURLConnection
             try {
-                connection.requestMethod = "GET"
-                connection.connectTimeout = 15_000
-                connection.readTimeout = 60_000
-                connection.setRequestProperty("Accept", "application/geo+json, application/json")
+                val connection = URL(buildRequestUrl(bounds)).openConnection() as HttpURLConnection
+                try {
+                    connection.requestMethod = "GET"
+                    connection.connectTimeout = 15_000
+                    connection.readTimeout = 60_000
+                    connection.setRequestProperty("Accept", "application/geo+json, application/json")
 
-                val statusCode = connection.responseCode
-                if (statusCode !in 200..299) {
-                    val error = connection.errorStream?.bufferedReader()?.use { it.readText() }
-                    error("IGN WFS a répondu HTTP $statusCode${error?.let { ": $it" } ?: ""}")
+                    val statusCode = connection.responseCode
+                    if (statusCode !in 200..299) {
+                        val error = connection.errorStream?.bufferedReader()?.use { it.readText() }
+                        throw RgeAltiWfsException(
+                            "IGN WFS a répondu HTTP $statusCode${error?.let { ": $it" } ?: ""}"
+                        )
+                    }
+
+                    connection.inputStream.bufferedReader().use { it.readText() }
+                } finally {
+                    connection.disconnect()
                 }
-
-                connection.inputStream.bufferedReader().use { it.readText() }
-            } finally {
-                connection.disconnect()
+            } catch (error: RgeAltiWfsException) {
+                throw error
+            } catch (error: Exception) {
+                throw RgeAltiWfsException(
+                    "Impossible de récupérer les courbes IGN depuis la Géoplateforme",
+                    error
+                )
             }
         }
 
