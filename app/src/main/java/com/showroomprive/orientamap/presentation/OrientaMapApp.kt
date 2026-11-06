@@ -76,7 +76,8 @@ fun OrientaMapApp(
                                     exportService.exportSelectedArea(
                                         output = it,
                                         title = title,
-                                        bounds = bounds
+                                        bounds = bounds,
+                                        projectId = project?.id
                                     )
                                 }
                             }.onSuccess {

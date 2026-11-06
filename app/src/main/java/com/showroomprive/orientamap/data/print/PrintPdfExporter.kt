@@ -4,10 +4,15 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.pdf.PdfDocument
+import com.showroomprive.orientamap.domain.model.GeoBounds
+import com.showroomprive.orientamap.domain.model.IsomContour
+import com.showroomprive.orientamap.domain.model.Lambert93Projection
 import com.showroomprive.orientamap.domain.model.PrintMapSpec
+import com.showroomprive.orientamap.domain.model.Wgs84Coordinate
 import java.io.OutputStream
 import kotlin.math.roundToInt
 
@@ -23,7 +28,9 @@ class PrintPdfExporter {
         output: OutputStream,
         spec: PrintMapSpec = PrintMapSpec(),
         title: String,
-        background: Bitmap? = null
+        background: Bitmap? = null,
+        geographicBounds: GeoBounds? = null,
+        contours: List<IsomContour> = emptyList()
     ) {
         require(spec.pageWidthMm > 0.0 && spec.pageHeightMm > 0.0)
         require(title.isNotBlank()) { "Le titre de la carte ne peut pas être vide" }
@@ -34,7 +41,7 @@ class PrintPdfExporter {
             val pageHeight = mmToPoints(spec.pageHeightMm)
             val pageInfo = PdfDocument.PageInfo.Builder(pageWidth, pageHeight, 1).create()
             val page = document.startPage(pageInfo)
-            drawPage(page.canvas, spec, title, background)
+            drawPage(page.canvas, spec, title, background, geographicBounds, contours)
             document.finishPage(page)
             document.writeTo(output)
         } finally {
@@ -46,7 +53,9 @@ class PrintPdfExporter {
         canvas: Canvas,
         spec: PrintMapSpec,
         title: String,
-        background: Bitmap?
+        background: Bitmap?,
+        geographicBounds: GeoBounds?,
+        contours: List<IsomContour>
     ) {
         canvas.drawColor(Color.WHITE)
 
@@ -68,6 +77,9 @@ class PrintPdfExporter {
         )
 
         background?.let { drawBitmapCover(canvas, it, mapRect) }
+        if (geographicBounds != null && contours.isNotEmpty()) {
+            drawContours(canvas, mapRect, spec, geographicBounds, contours)
+        }
 
         val linePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.BLACK
@@ -96,6 +108,57 @@ class PrintPdfExporter {
 
         drawScaleBar(canvas, mapRect, spec)
         drawNorthArrow(canvas, mapRect)
+    }
+
+
+    private fun drawContours(
+        canvas: Canvas,
+        mapRect: RectF,
+        spec: PrintMapSpec,
+        bounds: GeoBounds,
+        contours: List<IsomContour>
+    ) {
+        val projectedCorners = listOf(
+            Lambert93Projection.project(Wgs84Coordinate(bounds.west, bounds.south)),
+            Lambert93Projection.project(Wgs84Coordinate(bounds.west, bounds.north)),
+            Lambert93Projection.project(Wgs84Coordinate(bounds.east, bounds.south)),
+            Lambert93Projection.project(Wgs84Coordinate(bounds.east, bounds.north))
+        )
+        val minEasting = projectedCorners.minOf { it.eastingMeters }
+        val maxEasting = projectedCorners.maxOf { it.eastingMeters }
+        val minNorthing = projectedCorners.minOf { it.northingMeters }
+        val maxNorthing = projectedCorners.maxOf { it.northingMeters }
+        val eastingSpan = (maxEasting - minEasting).coerceAtLeast(1.0)
+        val northingSpan = (maxNorthing - minNorthing).coerceAtLeast(1.0)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.argb(190, 164, 119, 70)
+            style = Paint.Style.STROKE
+            strokeCap = Paint.Cap.ROUND
+            strokeJoin = Paint.Join.ROUND
+        }
+
+        canvas.save()
+        canvas.clipRect(mapRect)
+        contours.forEach { contour ->
+            paint.strokeWidth = mmToPoints(
+                if (contour.isIndexContour) {
+                    0.22 * spec.isomSymbolScaleFactor
+                } else {
+                    0.12 * spec.isomSymbolScaleFactor
+                }
+            ).toFloat()
+            val path = Path()
+            contour.coordinates.forEachIndexed { index, coordinate ->
+                val x = mapRect.left +
+                    ((coordinate.eastingMeters - minEasting) / eastingSpan * mapRect.width())
+                val y = mapRect.bottom -
+                    ((coordinate.northingMeters - minNorthing) / northingSpan * mapRect.height())
+                if (index == 0) path.moveTo(x.toFloat(), y.toFloat())
+                else path.lineTo(x.toFloat(), y.toFloat())
+            }
+            canvas.drawPath(path, paint)
+        }
+        canvas.restore()
     }
 
     private fun drawScaleBar(canvas: Canvas, mapRect: RectF, spec: PrintMapSpec) {
