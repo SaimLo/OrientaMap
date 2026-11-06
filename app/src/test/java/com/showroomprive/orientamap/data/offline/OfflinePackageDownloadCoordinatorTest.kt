@@ -12,6 +12,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.util.UUID
 
@@ -99,6 +100,111 @@ class OfflinePackageDownloadCoordinatorTest {
         )
     }
 
+    @Test
+    fun nonRecoverableErrorMarksPackageAsFailed() {
+        val packageId = UUID.randomUUID()
+        val repository = FakeOfflinePackageRepository(packageFixture(packageId))
+        val downloader = FakeOfflineDownloader()
+        val coordinator = OfflinePackageDownloadCoordinator(
+            downloader = downloader,
+            repository = repository,
+            scope = CoroutineScope(Dispatchers.Unconfined)
+        )
+
+        coordinator.start(packageId)
+        downloader.observer!!.onError("HTTP 503", recoverable = false)
+
+        assertEquals(OfflinePackageStatus.ECHEC, repository.value.status)
+        assertEquals("HTTP 503", repository.value.lastError)
+    }
+
+    @Test
+    fun recoverableErrorKeepsDownloadActive() {
+        val packageId = UUID.randomUUID()
+        val repository = FakeOfflinePackageRepository(packageFixture(packageId))
+        val downloader = FakeOfflineDownloader()
+        val coordinator = OfflinePackageDownloadCoordinator(
+            downloader = downloader,
+            repository = repository,
+            scope = CoroutineScope(Dispatchers.Unconfined)
+        )
+
+        coordinator.start(packageId)
+        downloader.observer!!.onError("Network temporarily unavailable", recoverable = true)
+
+        assertEquals(OfflinePackageStatus.TELECHARGEMENT_EN_COURS, repository.value.status)
+        assertEquals("Network temporarily unavailable", repository.value.lastError)
+    }
+
+    @Test
+    fun tileLimitErrorMarksPackageAsFailed() {
+        val packageId = UUID.randomUUID()
+        val repository = FakeOfflinePackageRepository(packageFixture(packageId))
+        val downloader = FakeOfflineDownloader()
+        val coordinator = OfflinePackageDownloadCoordinator(
+            downloader = downloader,
+            repository = repository,
+            scope = CoroutineScope(Dispatchers.Unconfined)
+        )
+
+        coordinator.start(packageId)
+        downloader.observer!!.onTileCountLimitExceeded(10_000L)
+
+        assertEquals(OfflinePackageStatus.ECHEC, repository.value.status)
+        assertTrue(repository.value.lastError!!.contains("10000"))
+    }
+
+    @Test
+    fun resourceCountIsUsedWhenTileCountIsUnavailable() {
+        val packageId = UUID.randomUUID()
+        val repository = FakeOfflinePackageRepository(packageFixture(packageId))
+        val downloader = FakeOfflineDownloader()
+        val coordinator = OfflinePackageDownloadCoordinator(
+            downloader = downloader,
+            repository = repository,
+            scope = CoroutineScope(Dispatchers.Unconfined)
+        )
+
+        coordinator.start(packageId)
+        downloader.observer!!.onProgress(
+            OfflineDownloadProgress(
+                regionId = 42L,
+                isActive = true,
+                completedTileCount = 0L,
+                requiredResourceCount = 14L,
+                completedResourceCount = 6L,
+                completedTileSizeBytes = 0L,
+                completedResourceSizeBytes = 600L,
+                isComplete = false,
+                requiredResourceCountIsPrecise = true
+            )
+        )
+
+        assertEquals(6L, repository.value.downloadedTiles)
+        assertEquals(600L, repository.value.downloadedBytes)
+    }
+
+    @Test
+    fun deleteErrorMarksPackageAsFailed() {
+        val packageId = UUID.randomUUID()
+        val repository = FakeOfflinePackageRepository(
+            packageFixture(packageId).copy(mapLibreRegionId = 42L)
+        )
+        val downloader = FakeOfflineDownloader().apply {
+            deleteError = "Unable to delete region"
+        }
+        val coordinator = OfflinePackageDownloadCoordinator(
+            downloader = downloader,
+            repository = repository,
+            scope = CoroutineScope(Dispatchers.Unconfined)
+        )
+
+        coordinator.delete(packageId)
+
+        assertEquals(OfflinePackageStatus.ECHEC, repository.value.status)
+        assertEquals("Unable to delete region", repository.value.lastError)
+    }
+
     private fun packageFixture(id: UUID) = OfflinePackage(
         id = id,
         projectId = UUID.randomUUID(),
@@ -122,6 +228,7 @@ class OfflinePackageDownloadCoordinatorTest {
 
     private class FakeOfflineDownloader : OfflineDownloader {
         var observer: OfflineDownloadObserver? = null
+        var deleteError: String? = null
 
         override fun start(
             offlinePackage: OfflinePackage,
@@ -143,7 +250,7 @@ class OfflinePackageDownloadCoordinatorTest {
         }
 
         override fun delete(regionId: Long, onResult: (String?) -> Unit) {
-            onResult(null)
+            onResult(deleteError)
         }
     }
 

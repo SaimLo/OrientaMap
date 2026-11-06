@@ -202,7 +202,8 @@ fun MapScreen(
     val screenCoordinateProjector = activeController?.screenCoordinateProjector()
     var currentZoom by remember { mutableStateOf<Double?>(null) }
 
-    LaunchedEffect(activeController) {
+    LaunchedEffect(activeController, mapController) {
+        if (mapController != null) return@LaunchedEffect
         while (isActive) {
             currentZoom = activeController?.currentZoom()
             delay(250)

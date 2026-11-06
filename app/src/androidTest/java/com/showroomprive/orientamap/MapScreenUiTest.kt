@@ -53,6 +53,7 @@ class MapScreenUiTest {
             )
         }
 
+        composeTestRule.waitForIdle()
         composeTestRule.onNodeWithTag("map_screen").assertIsDisplayed()
         composeTestRule.onNodeWithTag("map_view").assertIsDisplayed()
         composeTestRule.onNodeWithTag("gps_status").assertIsDisplayed().assertTextEquals("GPS actif")
@@ -77,6 +78,7 @@ class MapScreenUiTest {
             )
         }
 
+        composeTestRule.waitForIdle()
         val location1 = Location("gps").apply {
             latitude = 48.8566
             longitude = 2.3522
@@ -118,6 +120,7 @@ class MapScreenUiTest {
             )
         }
 
+        composeTestRule.waitForIdle()
         val location1 = Location("gps").apply {
             latitude = 48.8566
             longitude = 2.3522
@@ -160,6 +163,7 @@ class MapScreenUiTest {
             )
         }
 
+        composeTestRule.waitForIdle()
         composeTestRule.onNodeWithTag("gps_status").assertIsDisplayed().assertTextEquals("Permission GPS requise")
     }
 
@@ -181,6 +185,7 @@ class MapScreenUiTest {
             )
         }
 
+        composeTestRule.waitForIdle()
         composeTestRule.onNodeWithContentDescription("Fermer").performClick()
         composeTestRule.runOnIdle {
             assertTrue(backClicked)
