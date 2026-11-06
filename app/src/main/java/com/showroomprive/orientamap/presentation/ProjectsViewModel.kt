@@ -23,13 +23,19 @@ class ProjectsViewModel(
             initialValue = emptyList()
         )
 
-    fun createSampleProject() {
+    fun createProject(name: String) {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return
         viewModelScope.launch {
             repository.createProject(
-                name = "Nouveau projet",
+                name = trimmed,
                 description = "Projet cartographique à compléter"
             )
         }
+    }
+
+    fun createSampleProject() {
+        createProject("Nouveau projet")
     }
 
     fun renameProject(project: MapProject, newName: String) {

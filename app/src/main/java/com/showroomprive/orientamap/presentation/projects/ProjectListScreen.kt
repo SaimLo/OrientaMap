@@ -29,12 +29,14 @@ import com.showroomprive.orientamap.domain.model.displayLabel
 @Composable
 fun ProjectListScreen(
     projects: List<MapProject>,
-    onCreateProject: () -> Unit,
+    onCreateProject: (String) -> Unit,
     onOpenProject: (MapProject) -> Unit,
     onRenameProject: (MapProject, String) -> Unit,
     onDeleteProject: (MapProject) -> Unit
 ) {
     var projectToRename by remember { mutableStateOf<MapProject?>(null) }
+    var showCreateDialog by remember { mutableStateOf(false) }
+    var newProjectName by remember { mutableStateOf("") }
 
     Column(
         modifier = Modifier
@@ -48,7 +50,10 @@ fun ProjectListScreen(
         )
 
         Button(
-            onClick = onCreateProject,
+            onClick = {
+                newProjectName = ""
+                showCreateDialog = true
+            },
             modifier = Modifier
                 .fillMaxWidth()
                 .testTag("create_project_button")
@@ -102,6 +107,47 @@ fun ProjectListScreen(
                 }
             }
         }
+    }
+
+    if (showCreateDialog) {
+        AlertDialog(
+            onDismissRequest = { showCreateDialog = false },
+            title = { Text("Créer un projet") },
+            text = {
+                OutlinedTextField(
+                    value = newProjectName,
+                    onValueChange = { newProjectName = it },
+                    label = { Text("Nom du projet") },
+                    singleLine = true,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("create_project_name")
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val trimmed = newProjectName.trim()
+                        if (trimmed.isNotEmpty()) {
+                            onCreateProject(trimmed)
+                            showCreateDialog = false
+                        }
+                    },
+                    enabled = newProjectName.isNotBlank(),
+                    modifier = Modifier.testTag("create_project_confirm_button")
+                ) {
+                    Text("Créer")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showCreateDialog = false },
+                    modifier = Modifier.testTag("create_project_cancel_button")
+                ) {
+                    Text("Annuler")
+                }
+            }
+        )
     }
 
     projectToRename?.let { project ->

@@ -337,14 +337,16 @@ fun MapScreen(
                             onResume = onResumeOfflineDownload,
                             onCancel = onCancelOfflineDownload
                         )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Button(
-                            onClick = onExportPdf,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("export_pdf_button")
-                        ) {
-                            Text("Exporter en PDF")
+                        if (offlinePackages.any { it.status == OfflinePackageStatus.TERMINE }) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Button(
+                                onClick = onExportPdf,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("export_pdf_button")
+                            ) {
+                                Text("Exporter en PDF")
+                            }
                         }
                     }
 

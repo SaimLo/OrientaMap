@@ -29,7 +29,7 @@ class ProjectListUiTest {
         composeTestRule.setContent {
             ProjectListScreen(
                 projects = emptyList(),
-                onCreateProject = {},
+                onCreateProject = { _ -> },
                 onOpenProject = {},
                 onRenameProject = { _, _ -> },
                 onDeleteProject = {}
@@ -54,7 +54,7 @@ class ProjectListUiTest {
         composeTestRule.setContent {
             ProjectListScreen(
                 projects = listOf(project),
-                onCreateProject = {},
+                onCreateProject = { _ -> },
                 onOpenProject = {},
                 onRenameProject = { _, _ -> },
                 onDeleteProject = {}
@@ -70,12 +70,12 @@ class ProjectListUiTest {
 
     @Test
     fun testCreateProject() {
-        var createCalled = false
+        var createdName: String? = null
 
         composeTestRule.setContent {
             ProjectListScreen(
                 projects = emptyList(),
-                onCreateProject = { createCalled = true },
+                onCreateProject = { createdName = it },
                 onOpenProject = {},
                 onRenameProject = { _, _ -> },
                 onDeleteProject = {}
@@ -83,8 +83,10 @@ class ProjectListUiTest {
         }
 
         composeTestRule.onNodeWithTag("create_project_button").performClick()
+        composeTestRule.onNodeWithTag("create_project_name").performTextInput("Forêt test")
+        composeTestRule.onNodeWithTag("create_project_confirm_button").performClick()
         composeTestRule.runOnIdle {
-            assertTrue(createCalled)
+            assertEquals("Forêt test", createdName)
         }
     }
 
@@ -103,7 +105,7 @@ class ProjectListUiTest {
         composeTestRule.setContent {
             ProjectListScreen(
                 projects = listOf(project),
-                onCreateProject = {},
+                onCreateProject = { _ -> },
                 onOpenProject = { openedProject = it },
                 onRenameProject = { _, _ -> },
                 onDeleteProject = {}
@@ -131,7 +133,7 @@ class ProjectListUiTest {
         composeTestRule.setContent {
             ProjectListScreen(
                 projects = listOf(project),
-                onCreateProject = {},
+                onCreateProject = { _ -> },
                 onOpenProject = {},
                 onRenameProject = { _, _ -> },
                 onDeleteProject = { deletedProject = it }
@@ -160,7 +162,7 @@ class ProjectListUiTest {
         composeTestRule.setContent {
             ProjectListScreen(
                 projects = listOf(project),
-                onCreateProject = {},
+                onCreateProject = { _ -> },
                 onOpenProject = {},
                 onRenameProject = { p, newName ->
                     renamedProject = p
@@ -201,7 +203,7 @@ class ProjectListUiTest {
         composeTestRule.setContent {
             ProjectListScreen(
                 projects = listOf(project1, project2),
-                onCreateProject = {},
+                onCreateProject = { _ -> },
                 onOpenProject = {},
                 onRenameProject = { _, _ -> },
                 onDeleteProject = {}
@@ -235,7 +237,7 @@ class ProjectListUiTest {
         composeTestRule.setContent {
             ProjectListScreen(
                 projects = listOf(project1, project2),
-                onCreateProject = {},
+                onCreateProject = { _ -> },
                 onOpenProject = { openedProject = it },
                 onRenameProject = { _, _ -> },
                 onDeleteProject = {}

@@ -48,7 +48,7 @@ fun OrientaMapApp(
             composable("projects") {
                 ProjectListScreen(
                     projects = projects,
-                    onCreateProject = viewModel::createSampleProject,
+                    onCreateProject = viewModel::createProject,
                     onOpenProject = { project ->
                         navController.navigate("map/${project.id}")
                     },
